@@ -157,11 +157,15 @@ orthogonalDecomposition delta (Sum a b) od patterns  = let  s = fst $ getInjValu
                                                             odT = orthogonalDecomposition delta b od t
                                                             in odS ++ odT --Se as decomposições são válidas, a união de ambas é uma OD.
               --Preciso implementar o conceito de free-variables neste caso!!
-orthogonalDecomposition delta (Prod a b) od patterns = let s = breakPairs patterns 1
-                                                           t = breakPairs patterns 2
+orthogonalDecomposition delta (Prod a b) od patterns = let s = breakPairs patterns 1 --Get first elem of pairs
+                                                           t = breakPairs patterns 2 --Get second elem of pairs
                                                            odS = orthogonalDecomposition delta a od s
                                                            odT = orthogonalDecomposition delta b od t
-                                                           in patterns --Testar a condição das freevariables. Se passar no teste, é uma OD.
+                                                           freeValsV1 = freeValueVariables s
+                                                           freeValsV2 = freeValueVariables t
+                                                           -- Se existe intersecçao de FreeVariables, retorna um conjunto Vazio, não é uma OD.
+                                                           in if freeValIntersects freeValsV1 freeValsV2 then []
+                                                                else patterns
 orthogonalDecomposition delta a od [] = error "Cannot  generate Orthogonal Decomposition: valueList empty!"
 --Returns a pair of lists, the first being all InjL values and the second all InjR values.
 --Will return an empty list as one of the members if there is no value of either of the indicated Types
@@ -194,7 +198,7 @@ getSndFromPair (PairV p1 p2) = p2
 --Returns the bottom value from an Extended Value. (Val(e))
 bottomValue :: E -> V
 bottomValue (Val v) = v
-bottomValue (LetE p iso p e) = bottomValue e
+bottomValue (LetE p1 iso p2 e) = bottomValue e
 
 freeValueVariables :: [V] -> [String]
 freeValueVariables [] = []
@@ -203,6 +207,9 @@ freeValueVariables ((InjL v):values) = freeValueVariables [v] ++ freeValueVariab
 freeValueVariables ((InjR v):values) = freeValueVariables [v] ++ freeValueVariables values
 freeValueVariables ((PairV v1 v2):values) = freeValueVariables [v1] ++ freeValueVariables [v2] ++ freeValueVariables values
 
+--Tests the intersection of freeVariable lists, returning True for intersection, False for no intersection
+freeValIntersects :: [String] -> [String] -> Bool
+freeValIntersects fv1 fv2 = not . null $ fv1 `intersect` fv2
 
 errorOrType :: Either TypeErrors A -> V -> [V]
 errorOrType (Right a) v = [v]
