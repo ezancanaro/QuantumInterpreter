@@ -4,7 +4,7 @@ import Data.List
 import Debug.Trace
 
 --Debugging flag-
-doDebug = True
+doDebug = False
 --Making debug statements easier to use
 debug a b = if doDebug then trace a b else b
 --Remember to remove debugging statements after checks
@@ -128,11 +128,8 @@ wrap (Right val) = val
 
 
 typeCheck :: Delta -> Psi -> Iso -> T -> T
-typeCheck delta psi iso t = checked t $ isoTypeCheck delta psi iso t
+typeCheck delta psi iso t = wrap $ isoTypeCheck delta psi iso t
 
-checked :: T -> Either TypeErrors T -> T
-checked a (Right b) = a
-checked _ (Left e) = error (show e)
 
 -- TypeChecking definition for terms
 mytermTypeCheck :: Delta -> Psi -> Term -> A -> Either TypeErrors A
@@ -229,8 +226,9 @@ checkIsoReturnType b _ = TypeError "Iso is not a function"
 -- TypeChecking function for isomorphisms.
 isoTypeCheck :: Delta -> Psi -> Iso -> T -> Either TypeErrors T
 isoTypeCheck delta psi (IsoVar f) t = Right $ debug("VAR") wrap $ fType f $ fInContext f psi
-isoTypeCheck delta psi (Lambda f iso) t = let aB = debug("LAM") breakIsoType t
-                                            in Right $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f aB) iso $ snd aB
+isoTypeCheck delta psi (Lambda f iso) t = let aB = debug("LAM") breakIsoType t -- Breaking the computation type
+                                              isoType = wrap $ getIsoTypes (fst aB) --Type of iso f
+                                            in Right (Comp (fst isoType) (snd isoType) $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f aB) iso $ snd aB)
 isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = debug("APP") fst $ breakIsoType $ wrap $ isoTypeCheck delta psi iso1 t
                                             in if (wrap $ isoTypeCheck delta psi iso2 iso1Type) == iso1Type then Right t
                                           else Left $ AppError "Cannot app isos" iso1 iso2

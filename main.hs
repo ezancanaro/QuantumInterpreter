@@ -27,7 +27,7 @@ test1 = let x = Xval "x"
             delta = [("x",One)]
             psi = []
             --Not working properly yet- Haven't implemented typeChecking for ExtendedValues
-            in ("Type:" ++ show (typeCheck delta psi iso1 t2) )
+            in ("Type:" ++ show (typeCheck delta psi lambdaG isoType) )
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
 main = putStr test1
