@@ -20,14 +20,14 @@ test1 = let x = Xval "x"
             lambdaG = Lambda "g" lambdaH
             bool = Sum One One
             boolXb = Prod bool One
-            t1 = bool
-            t2 = Iso bool bool
+            t1 = One
+            t2 = Iso boolXb boolXb
             isoT1 = Comp bool bool t2
             isoType = Comp bool bool isoT1
             delta = [("x",One)]
             psi = []
             --Not working properly yet- Haven't implemented typeChecking for ExtendedValues
-            in ("Type:" ++ show (typeCheck delta psi lambdaG isoType) )
+            in ("Type:" ++ show (typeCheck delta psi iso1 t2) )
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
 main = putStr test1

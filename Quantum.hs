@@ -1,6 +1,13 @@
 module Quantum where
 import Data.Complex
 import Data.List
+import Debug.Trace
+
+--Debugging flag-
+doDebug = True
+--Making debug statements easier to use
+debug a b = if doDebug then trace a b else b
+--Remember to remove debugging statements after checks
 
 data A =  One -- 1
         | Sum A B -- a + b
@@ -19,11 +26,11 @@ data V =  EmptyV
         | InjL V
         | InjR V
         | PairV V V
-        deriving(Eq,Show)
+        deriving(Eq)
 data P =  EmptyP
         | Xprod String --Equivale ao par <(),x>
         | PairP P P
-        deriving(Eq,Show)
+        deriving(Eq)
 data E =  Val V
         | LetE P Iso P E
         deriving(Eq,Show)
@@ -32,7 +39,7 @@ data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso
         | Pattern [(V,E)]
-        deriving(Eq,Show)
+        deriving(Eq)
 
 data Term = EmptyTerm
         | XTerm String
@@ -41,10 +48,10 @@ data Term = EmptyTerm
         | PairTerm Term Term
         | Omega Iso Term
         | Let P Term Term
-        deriving(Eq,Show)
+        deriving(Eq)
 
 data TypeErrors = VarError String String
-        | SumError String Term
+        | SumError String String
         | ProdError String P
         | IsoError String String String
         | OmegaError String Term
@@ -74,16 +81,45 @@ instance Show (T) where
   show (Iso a b) = "(" ++ show a ++ "<-->" ++ show b ++ ")"
   show (Comp a b t) = "(" ++ show a ++ "<-->" ++ show b ++ ")" ++ "-->" ++ show t
 
+instance Show (V) where
+  show (EmptyV) = "()"
+  show (Xval s) = s
+  show (InjL v) = "InjL" ++ show v
+  show (InjR v) = "InjR" ++ show v
+  show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
 
+instance Show (P) where
+  show (EmptyP) = "()"
+  show (Xprod s) = s
+  show (PairP p1 p2) = "<" ++ show p1 ++ "," ++ show p2 ++ ">"
 
--- Definição da Ortogonalidade de valores
+instance Show (Term) where
+  show (EmptyTerm) = "()"
+  show (XTerm s) = s
+  show (InjLt t) = "InjL" ++ show t
+  show (InjRt t) = "InjR" ++ show t
+  show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
+  show (Omega iso t1) = show iso ++ " " ++ show t1
+  show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ " in " ++ show t2
+
+instance Show (Iso) where
+  show (Lambda s iso) = "Lam" ++ s ++ "." ++ show iso
+  show (IsoVar s) = s
+  show (App iso1 iso2) = show iso1 ++ " " ++ show iso2
+  show (Pattern list) = showPatterns list
+
+showPatterns :: [(V,E)] -> String
+showPatterns [] = []
+showPatterns (p1:patterns) = show (fst p1) ++ "<-->" ++ show (snd p1) ++ "\n" ++ showPatterns patterns
+
+-- Value orthogonality
 (@@) :: V -> V -> Bool
 (InjL v1) @@ (InjR v2) = True
 (InjR v1) @@ (InjL v2) = True
 (InjL v1) @@ (InjL v2) = v1 @@ v2
 (InjR v1) @@ (InjR v2) = v1 @@ v2
 (PairV v v1) @@ (PairV v' v2) = v1 @@ v2
--- (PairV v1 v) @@ (PairV v2 v') = v1 @@ v2 Por que esta definição existe?
+-- (PairV v1 v) @@ (PairV v2 v') = v1 @@ v2 ??
 
 --Function used to wrap evaluations of typing error raising functions
 wrap :: Either TypeErrors a -> a
@@ -92,11 +128,11 @@ wrap (Right val) = val
 
 
 typeCheck :: Delta -> Psi -> Iso -> T -> T
-typeCheck delta psi t a = checked a $ isoTypeCheck delta psi t a
+typeCheck delta psi iso t = checked t $ isoTypeCheck delta psi iso t
 
 checked :: T -> Either TypeErrors T -> T
 checked a (Right b) = a
-checked _ _ = error "should not execute ever"
+checked _ (Left e) = error (show e)
 
 -- TypeChecking definition for terms
 mytermTypeCheck :: Delta -> Psi -> Term -> A -> Either TypeErrors A
@@ -112,8 +148,49 @@ mytermTypeCheck delta psi (Omega f t) b = let isoInputType = checkIsoReturnType 
 mytermTypeCheck delta psi (Let p t1 t2) c = let newDelta = wrap $ addToContext delta p $ wrap $ mytermTypeCheck delta psi t1 c
                                               in Right $ wrap $ mytermTypeCheck newDelta psi t2 c
 mytermTypeCheck _ _ t a = Left $ CustomError "Cannot match term and type:" (show t ++ " : " ++ show a)
+
+valueTypeCheck ::  Delta -> V -> A  ->Either TypeErrors A
+valueTypeCheck delta EmptyV One = Right One
+valueTypeCheck delta (Xval x) a =  Right (wrap $ matchTypes a (XTerm x) $ wrap $ myxType x $ xInContext x delta)
+valueTypeCheck delta (InjL v) (Sum a b) = Right $ Sum (wrap $ matchTypes a v $ wrap $ valueTypeCheck delta v a) b
+valueTypeCheck delta (InjR v) (Sum a b) = Right $ Sum a (wrap $ matchTypes a v $ wrap $ valueTypeCheck delta v b)
+valueTypeCheck delta (PairV v v2) (Prod a b) = Right $ Prod (wrap $ valueTypeCheck delta v a) $ wrap $ valueTypeCheck delta v2 b
+valueTypeCheck _ v a = Left $ CustomError "Value matching failed:" (show v ++ ":" ++ show a)
+
+productsTypecheck :: Delta ->  P -> A -> Either TypeErrors A
+productsTypecheck delta (Xprod x) a = valueTypeCheck delta (Xval x) a
+productsTypecheck delta (PairP p1 p2) (Prod a b) = Right $ Prod (wrap $ productsTypecheck delta p1 a) $ wrap $ productsTypecheck delta p2 b
+productsTypecheck delta p _ = Left $ CustomError "Product typechecking error" (show p)
+
+extendedValueTypeCheck :: Delta -> Psi -> E -> A -> Either TypeErrors A
+extendedValueTypeCheck delta psi (Val v) a = valueTypeCheck delta v a
+extendedValueTypeCheck delta psi (LetE p1 iso p2 e) a = let isoType = wrap $ getIsoTypes $ wrap $ isoTypeFromPsi $ isoLookup iso psi
+                                                            p2Type = wrap $ productsTypecheck delta p2 $ fst isoType
+                                                            bottomVal = bottomValue e
+                                                          in if(fst isoType == p2Type)
+                                                              then valueTypeCheck (addProductToContext delta p1 $ snd isoType) bottomVal a
+                                                             else Left $ ProdError "Product not input of Iso" p2
+
+addProductToContext :: Delta -> P -> A -> Delta
+addProductToContext delta (EmptyP) a = delta
+addProductToContext delta (Xprod x) a = (x,a):delta
+addProductToContext delta (PairP p1 p2) (Prod a b) = addProductToContext delta p1 a ++ addProductToContext delta p2 b
+
+getIsoTypes :: T -> Either TypeErrors (A,B)
+getIsoTypes (Iso a b) = Right (a,b)
+getIsoTypes iso = Left $ IsoError "Not an isoType" (show iso) ""
+
+isoTypeFromPsi :: Maybe T -> Either TypeErrors T
+isoTypeFromPsi (Just t) = Right t
+isoTypeFromPsi Nothing = Left $ IsoError "Iso not found in context: " "" ""
+
+isoLookup :: Iso -> Psi -> Maybe T
+isoLookup (IsoVar s) psi = lookup s psi
+isoLookup (Lambda s iso) psi = lookup s psi
+isoLookup _ _= Nothing
+
 --Check if product and type provided are conductive to pairs. If so, extend the context
--- Otherwise raise a typing error.
+-- Otherwise return a typing error.
 addToContext :: Delta-> P -> A -> Either TypeErrors Delta
 addToContext delta (PairP (Xprod x) (Xprod y)) (Prod a b) = Right $ delta ++ [(x,a),(y,b)]
 addToContext delta (Xprod x) a = Right $ (x,a) : delta
@@ -143,6 +220,7 @@ fType f Nothing = Left $ IsoError "Function not in context" f ""
 fInContext :: String -> Psi -> Maybe T
 fInContext f psi = lookup f psi
 
+--Returns iso input type if Iso's output type matches supplied b
 checkIsoReturnType ::  B -> T -> B
 checkIsoReturnType b (Iso a b') = if b' == b then a
                                              else TypeError "Iso input type doesnt match Term"
@@ -150,30 +228,37 @@ checkIsoReturnType b _ = TypeError "Iso is not a function"
 
 -- TypeChecking function for isomorphisms.
 isoTypeCheck :: Delta -> Psi -> Iso -> T -> Either TypeErrors T
-isoTypeCheck delta psi (IsoVar f) t = Right $ wrap $ fType f $ fInContext f psi
-isoTypeCheck delta psi (Lambda f iso) t = let aB = breakIsoType t
+isoTypeCheck delta psi (IsoVar f) t = Right $ debug("VAR") wrap $ fType f $ fInContext f psi
+isoTypeCheck delta psi (Lambda f iso) t = let aB = debug("LAM") breakIsoType t
                                             in Right $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f aB) iso $ snd aB
-isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = fst $ breakIsoType $ wrap $ isoTypeCheck delta psi iso1 t
-                                      in if (wrap $ isoTypeCheck delta psi iso2 iso1Type) == iso1Type then Right t
+isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = debug("APP") fst $ breakIsoType $ wrap $ isoTypeCheck delta psi iso1 t
+                                            in if (wrap $ isoTypeCheck delta psi iso2 iso1Type) == iso1Type then Right t
                                           else Left $ AppError "Cannot app isos" iso1 iso2
-isoTypeCheck delta psi (Pattern list) (Iso a b) = let vList = map fst list
+isoTypeCheck delta psi (Pattern list) (Iso a b) = let vList = debug("Something")
+                                                                map fst list
                                                       eList = map snd list
                                                       vTypes = wrap $ valueTypes delta vList a
-                                                      eTypes = wrap $ extendedValueTypes delta eList b
+                                                      eTypes = debug("Values:" ++ show vTypes)
+                                                                wrap $ extendedValueTypes delta psi eList b
                                                       odA = wrap $ orthogonalDecomposition delta a [] vList
                                                       odB = wrap $ extOrthogonalDecomposition delta b [] eList
-                                                  in Right (Iso a b) -- Make it right!
+                                                  in if (eTypes == b && vTypes == a) then Right $ Iso a b
+                                                      else Left $ IsoError "Iso patterns dont match type:" (show (Pattern list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
 isoTypeCheck _ _ iso t = Left $ IsoError "Could not match supplied iso" (show iso) (show t)
 
 --Checks supplied values' types, returning an error if one doesn't match the expected type,
 valueTypes :: Delta -> [V] -> A -> Either TypeErrors A
 valueTypes delta [] a = Right a
-valueTypes delta (v:vals) a = if (valueTypeCheck delta v a) == a then valueTypes delta vals a
-                              else Left $ ValueError "Value V doesnt match supplied type" v a
+valueTypes delta (v:vals) a = if (wrap $ valueTypeCheck delta v a) == a then debug("Value checked:" ++ show a)
+                                                                              valueTypes delta vals a
+                              else debug("Values didnot match: " ++ show a)
+                                    Left $ ValueError "Value V doesnt match supplied type" v a
 
 --Implementar a função para verificar os tipos dos ExtendedValues!!
-extendedValueTypes :: Delta -> [E] -> B -> Either TypeErrors B
-extendedValueTypes delta eList b = let bottomVals = map bottomValue eList in valueTypes delta bottomVals b
+extendedValueTypes :: Delta -> Psi -> [E] -> B -> Either TypeErrors B
+extendedValueTypes delta psi ((LetE p1 iso p2 e):listE) b = Right b
+extendedValueTypes delta psi eList b = let bottomVals = map bottomValue eList
+                                        in valueTypes delta bottomVals b
 
 addIsoNameToPsi :: Psi -> String -> (T,T) -> Psi
 addIsoNameToPsi psi f types = (f,fst types) : psi
@@ -182,11 +267,12 @@ breakIsoType :: T -> (T,T)
 breakIsoType (Comp a b t) = (Iso a b , t)
 breakIsoType t = error $ "Iso is not a computation" ++ show t
 
-matchTypes :: A -> Term -> B -> Either TypeErrors B
---Receives two types, returning the type if they match, a TypeError otherwise. Term is included so the error message is better defined
+--Receives two types, returning the type if they match, a TypeError otherwise.
+-- Argument type a is used to accept both Values and Terms, both of which have defined instances of Show.
+matchTypes :: Show a => A -> a -> B -> Either TypeErrors B
 matchTypes a t b
         | a == b = Right a
-        | otherwise = Left $ SumError "SumTypes differ on term: " t
+        | otherwise = Left $ SumError "SumTypes differ on term: " (show t)
 
 
 --Creates the set defining a OrthogonalDecomposition (OD) of value A.
@@ -263,12 +349,7 @@ errorOrType (Right a) v = [v]
 errorOrType (Left e) v = []
 
 --(.) :: (b -> c) -> (a -> b) -> a -> c
-valueTypeCheck ::  Delta -> V -> A  -> A
-valueTypeCheck delta EmptyV One = One
-valueTypeCheck delta (Xval x) a =  xType $ xInContext x delta
-valueTypeCheck delta (InjL v) (Sum a b) = valueTypeCheck delta v b
-valueTypeCheck delta (InjR v) (Sum a b) = valueTypeCheck delta v a
-valueTypeCheck delta (PairV v v2) (Prod a b) = Prod (valueTypeCheck delta v a) $ valueTypeCheck delta v2 b
+
 -- Sums [(Alpha,V)]
 
 -- termTypeCheck :: Delta -> Psi -> Term -> A -> A
