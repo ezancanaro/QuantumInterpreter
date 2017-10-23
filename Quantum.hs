@@ -5,14 +5,15 @@ import Data.List
 data A =  One -- 1
         | Sum A B -- a + b
         | Prod A B -- a * b
-        | Rec [A] -- [a]
+        | Rec [A] -- [a] List(A)= Sum One (Prod A List(A))
         | TypeError String
-        deriving(Eq,Show)
+        deriving(Eq)
 type B = A
+
 
 data T = Iso A B -- a<-->b
         | Comp A B T -- (a<-->b)-->T
-        deriving(Eq,Show)
+        deriving(Eq)
 data V =  EmptyV
         | Xval String
         | InjL V
@@ -20,7 +21,7 @@ data V =  EmptyV
         | PairV V V
         deriving(Eq,Show)
 data P =  EmptyP
-        | Xprod String
+        | Xprod String --Equivale ao par <(),x>
         | PairP P P
         deriving(Eq,Show)
 data E =  Val V
@@ -45,9 +46,12 @@ data Term = EmptyTerm
 data TypeErrors = VarError String String
         | SumError String Term
         | ProdError String P
-        | IsoError String String
+        | IsoError String String String
         | OmegaError String Term
         | AppError String Iso Iso
+        | ValueError String V A
+        | OrthogonalDecomp String [V]
+        | CustomError String String
         deriving(Show)
 
 type Alpha = Complex
@@ -58,6 +62,18 @@ type Delta = [(String,A)]
 type Psi = [(String,T)]
 type OD = [V]
 type ODext = [E]
+
+instance Show (A) where
+  show (One) = "1"
+  show (Sum a b) = show a ++ "+" ++ show b
+  show (Prod a b) = show a ++ "*" ++ show b
+  show (Rec a) = "[" ++ show (head a) ++ "]"
+  show (TypeError s) = s
+
+instance Show (T) where
+  show (Iso a b) = "(" ++ show a ++ "<-->" ++ show b ++ ")"
+  show (Comp a b t) = "(" ++ show a ++ "<-->" ++ show b ++ ")" ++ "-->" ++ show t
+
 
 
 -- Definição da Ortogonalidade de valores
@@ -74,6 +90,14 @@ wrap :: Either TypeErrors a -> a
 wrap (Left err) = error (show err)
 wrap (Right val) = val
 
+
+typeCheck :: Delta -> Psi -> Iso -> T -> T
+typeCheck delta psi t a = checked a $ isoTypeCheck delta psi t a
+
+checked :: T -> Either TypeErrors T -> T
+checked a (Right b) = a
+checked _ _ = error "should not execute ever"
+
 -- TypeChecking definition for terms
 mytermTypeCheck :: Delta -> Psi -> Term -> A -> Either TypeErrors A
 mytermTypeCheck delta psi EmptyTerm a = Right One
@@ -82,18 +106,18 @@ mytermTypeCheck delta psi (InjLt t) (Sum a b) = Right $ Sum (wrap $ matchTypes a
 mytermTypeCheck delta psi (InjRt t) (Sum a b) = Right $ Sum a (wrap $ matchTypes b t $ wrap $ mytermTypeCheck delta psi t b)
 mytermTypeCheck delta psi (PairTerm t1 t2) (Prod a b) = Right $ Prod (wrap $ mytermTypeCheck delta psi t1 a) $ wrap $ mytermTypeCheck delta psi t2 b
             --On pairs: differentiate the contexts for each t. Is it necessary?
-mytermTypeCheck delta psi (Omega f t) b = let isoInputType = checkIsoReturnType b $ wrap $ isoTypeCheck psi f (Iso One b)
+mytermTypeCheck delta psi (Omega f t) b = let isoInputType = checkIsoReturnType b $ wrap $ isoTypeCheck delta psi f (Iso One b)
                                           in if (wrap $ mytermTypeCheck delta psi t isoInputType) == isoInputType then Right b
                                             else Left $ OmegaError "Omega input of the wrong type" (Omega f t)
-mytermTypeCheck delta psi (Let p t1 t2) c = let newDelta = wrap $ ifPairAddToContext delta p $ wrap $ mytermTypeCheck delta psi t1 c
+mytermTypeCheck delta psi (Let p t1 t2) c = let newDelta = wrap $ addToContext delta p $ wrap $ mytermTypeCheck delta psi t1 c
                                               in Right $ wrap $ mytermTypeCheck newDelta psi t2 c
-
+mytermTypeCheck _ _ t a = Left $ CustomError "Cannot match term and type:" (show t ++ " : " ++ show a)
 --Check if product and type provided are conductive to pairs. If so, extend the context
 -- Otherwise raise a typing error.
-ifPairAddToContext :: Delta-> P -> A -> Either TypeErrors Delta
-ifPairAddToContext delta (PairP (Xprod x) (Xprod y)) (Prod a b) = Right $ delta ++ [(x,a),(y,b)]
-ifPairAddToContext _ p (Prod a b) = Left $ ProdError "Not a pair product" p
-ifPairAddToContext _ (PairP p1 p2) _ = Left $ ProdError "Not a product Type" (PairP p1 p2)
+addToContext :: Delta-> P -> A -> Either TypeErrors Delta
+addToContext delta (PairP (Xprod x) (Xprod y)) (Prod a b) = Right $ delta ++ [(x,a),(y,b)]
+addToContext delta (Xprod x) a = Right $ (x,a) : delta
+addToContext _ (PairP p1 p2) _ = Left $ ProdError "Not a product Type" (PairP p1 p2)
 
 --Retrieve the type of supplied value from context if it exists, otherwise return a TypeError
 myxType :: String -> Maybe A -> Either TypeErrors A
@@ -113,7 +137,7 @@ xInContext x delta = lookup x delta -- Lookup a -> [(a,b)] -> Maybe b
 --Retrieve type of iso named f from IsoContext psi
 fType :: String -> Maybe T -> Either TypeErrors T --Instead of building typeclasses for the Context Lookup function instances, create a new one
 fType f (Just t) = Right t
-fType f Nothing = Left $ IsoError "Function not in context" f
+fType f Nothing = Left $ IsoError "Function not in context" f ""
 
 --Lookup iso f in the supplied IsoContext. Returns Just T if iso is found, otherwise returns Nothing
 fInContext :: String -> Psi -> Maybe T
@@ -125,20 +149,38 @@ checkIsoReturnType b (Iso a b') = if b' == b then a
 checkIsoReturnType b _ = TypeError "Iso is not a function"
 
 -- TypeChecking function for isomorphisms.
-isoTypeCheck :: Psi -> Iso -> T -> Either TypeErrors T
-isoTypeCheck psi (IsoVar f) t = Right $ wrap $ fType f $ fInContext f psi
-isoTypeCheck psi (Lambda f iso) t = Right $ wrap $ isoTypeCheck (addIsoNameToPsi psi f $ breakIsoType t) iso t
-isoTypeCheck psi (App iso1 iso2) t = let iso1Type = fst $ breakIsoType $ wrap $ isoTypeCheck psi iso1 t
-                                      in if (wrap $ isoTypeCheck psi iso2 iso1Type) == iso1Type then Right t
+isoTypeCheck :: Delta -> Psi -> Iso -> T -> Either TypeErrors T
+isoTypeCheck delta psi (IsoVar f) t = Right $ wrap $ fType f $ fInContext f psi
+isoTypeCheck delta psi (Lambda f iso) t = let aB = breakIsoType t
+                                            in Right $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f aB) iso $ snd aB
+isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = fst $ breakIsoType $ wrap $ isoTypeCheck delta psi iso1 t
+                                      in if (wrap $ isoTypeCheck delta psi iso2 iso1Type) == iso1Type then Right t
                                           else Left $ AppError "Cannot app isos" iso1 iso2
-isoTypeCheck _ iso _= Left $ IsoError "Could not match supplied iso" (show iso)
+isoTypeCheck delta psi (Pattern list) (Iso a b) = let vList = map fst list
+                                                      eList = map snd list
+                                                      vTypes = wrap $ valueTypes delta vList a
+                                                      eTypes = wrap $ extendedValueTypes delta eList b
+                                                      odA = wrap $ orthogonalDecomposition delta a [] vList
+                                                      odB = wrap $ extOrthogonalDecomposition delta b [] eList
+                                                  in Right (Iso a b) -- Make it right!
+isoTypeCheck _ _ iso t = Left $ IsoError "Could not match supplied iso" (show iso) (show t)
+
+--Checks supplied values' types, returning an error if one doesn't match the expected type,
+valueTypes :: Delta -> [V] -> A -> Either TypeErrors A
+valueTypes delta [] a = Right a
+valueTypes delta (v:vals) a = if (valueTypeCheck delta v a) == a then valueTypes delta vals a
+                              else Left $ ValueError "Value V doesnt match supplied type" v a
+
+--Implementar a função para verificar os tipos dos ExtendedValues!!
+extendedValueTypes :: Delta -> [E] -> B -> Either TypeErrors B
+extendedValueTypes delta eList b = let bottomVals = map bottomValue eList in valueTypes delta bottomVals b
 
 addIsoNameToPsi :: Psi -> String -> (T,T) -> Psi
 addIsoNameToPsi psi f types = (f,fst types) : psi
 
 breakIsoType :: T -> (T,T)
 breakIsoType (Comp a b t) = (Iso a b , t)
-breakIsoType _ = error "Iso is not a computation"
+breakIsoType t = error $ "Iso is not a computation" ++ show t
 
 matchTypes :: A -> Term -> B -> Either TypeErrors B
 --Receives two types, returning the type if they match, a TypeError otherwise. Term is included so the error message is better defined
@@ -148,25 +190,30 @@ matchTypes a t b
 
 
 --Creates the set defining a OrthogonalDecomposition (OD) of value A.
-orthogonalDecomposition :: Delta -> A -> OD -> [V] -> OD
-orthogonalDecomposition delta One od _  = [EmptyV]
-orthogonalDecomposition delta a od [Xval x]  = [Xval x]
+orthogonalDecomposition :: Delta -> A -> OD -> [V] -> Either TypeErrors OD
+orthogonalDecomposition delta One od _  = Right $ [EmptyV]
+orthogonalDecomposition delta a od [Xval x]  = Right $ [Xval x]
 orthogonalDecomposition delta (Sum a b) od patterns  = let  s = fst $ getInjValues patterns
                                                             t =  snd $ getInjValues patterns
-                                                            odS = orthogonalDecomposition delta a od s
-                                                            odT = orthogonalDecomposition delta b od t
-                                                            in odS ++ odT --Se as decomposições são válidas, a união de ambas é uma OD.
+                                                            odS = wrap $ orthogonalDecomposition delta a od s
+                                                            odT = wrap $ orthogonalDecomposition delta b od t
+                                                            in Right $ odS ++ odT --Se as decomposições são válidas, a união de ambas é uma OD.
               --Preciso implementar o conceito de free-variables neste caso!!
 orthogonalDecomposition delta (Prod a b) od patterns = let s = breakPairs patterns 1 --Get first elem of pairs
                                                            t = breakPairs patterns 2 --Get second elem of pairs
-                                                           odS = orthogonalDecomposition delta a od s
-                                                           odT = orthogonalDecomposition delta b od t
-                                                           freeValsV1 = freeValueVariables s
+                                                           odS = wrap $ orthogonalDecomposition delta a od s
+                                                           odT = wrap $ orthogonalDecomposition delta b od t
                                                            freeValsV2 = freeValueVariables t
+                                                           freeValsV1 = freeValueVariables s
                                                            -- Se existe intersecçao de FreeVariables, retorna um conjunto Vazio, não é uma OD.
-                                                           in if freeValIntersects freeValsV1 freeValsV2 then []
-                                                                else patterns
-orthogonalDecomposition delta a od [] = error "Cannot  generate Orthogonal Decomposition: valueList empty!"
+                                                           in if freeValIntersects freeValsV1 freeValsV2
+                                                                then Left $ OrthogonalDecomp "Patterns dont make an orthogonal Decomposition!" patterns
+                                                                else Right patterns
+orthogonalDecomposition delta a od [] = Left $ OrthogonalDecomp "Cannot generate Orthogonal Decomposition:!" []
+--Definition of orthogonalDecomposition for extendedValues: OD(ExtVal) is true whenever OD(Val(ExtVal)) is true.
+extOrthogonalDecomposition :: Delta -> B -> OD -> [E] ->Either TypeErrors OD
+extOrthogonalDecomposition delta b od eList = orthogonalDecomposition delta b od $ map bottomValue eList
+
 --Returns a pair of lists, the first being all InjL values and the second all InjR values.
 --Will return an empty list as one of the members if there is no value of either of the indicated Types
 getInjValues :: [V] -> ([V],[V])
@@ -221,7 +268,7 @@ valueTypeCheck delta EmptyV One = One
 valueTypeCheck delta (Xval x) a =  xType $ xInContext x delta
 valueTypeCheck delta (InjL v) (Sum a b) = valueTypeCheck delta v b
 valueTypeCheck delta (InjR v) (Sum a b) = valueTypeCheck delta v a
-valueTypeCheck delta (PairV v v2) (Prod a b) = Prod  (valueTypeCheck delta v a) $ valueTypeCheck delta v2 b
+valueTypeCheck delta (PairV v v2) (Prod a b) = Prod (valueTypeCheck delta v a) $ valueTypeCheck delta v2 b
 -- Sums [(Alpha,V)]
 
 -- termTypeCheck :: Delta -> Psi -> Term -> A -> A
