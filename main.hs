@@ -2,6 +2,7 @@ module Main where
 
 import Quantum
 
+--Testing case for parametrized conditional.
 test1 :: String
 test1 = let x = Xval "x"
             xP = Xprod "x"
