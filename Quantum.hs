@@ -12,11 +12,16 @@ debug a b = if doDebug then trace a b else b
 data A =  One -- 1
         | Sum A B -- a + b
         | Prod A B -- a * b
-        | Rec A -- [a] == 1 + (a * [a]) --Sum One (Prod A (Rec A))
+        | Rec A  -- [a] == 1 + (a * [a]) --Sum One (Prod A (Rec A))
                 -- listX == ()|<x,listX> --[] or (x:listX)
-        | TypeError String
+                --[] = InjL ();; x:listX = InjR <x,listX>
+                -- How to specify the recursive type on Haskell?
+                -- Need to make it so [Injl() : Rec a] is valid for the typeChecker
+        | TypeVar Char --Allows usage of wildcards on typing rules (Ex: when applying iso to Term, supplied type is only the "output")
         deriving(Eq)
 type B = A
+-- recA = Sum One (List a))
+
 
 data T = Iso A B -- a<-->b
         | Comp A B T -- (a<-->b)-->T
@@ -38,7 +43,8 @@ data E =  Val V
 data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso
-        | Pattern [(V,E)]
+        | Clauses [(V,E)]
+        | Fixpoint String Iso
         deriving(Eq)
 
 data Term = EmptyTerm
@@ -59,6 +65,7 @@ data TypeErrors = VarError String String
         | ValueError String V A
         | OrthogonalDecomp String [V]
         | CustomError String String
+        | FixpointError String String
         deriving(Show)
 
 type Alpha = Complex
@@ -76,7 +83,9 @@ instance Show (A) where
   show (Sum a b) = show a ++ "+" ++ show b
   show (Prod a b) = show a ++ "*" ++ show b
   show (Rec (Sum one (Prod a recA))) = "[" ++ show a ++ "]"
-  show (TypeError s) = s
+  show (Rec a) = "[" ++ show a ++ "]"
+  show (TypeVar c) = c:[]
+
 
 instance Show (T) where
   show (Iso a b) = "(" ++ show a ++ "<-->" ++ show b ++ ")"
@@ -107,14 +116,15 @@ instance Show (Iso) where
   show (Lambda s iso) = "Lam" ++ s ++ "." ++ show iso
   show (IsoVar s) = s
   show (App iso1 iso2) = show iso1 ++ " " ++ show iso2
-  show (Pattern list) = showPatterns list
+  show (Clauses list) = showPatterns list
 
 showPatterns :: [(V,E)] -> String
 showPatterns [] = []
 showPatterns (p1:patterns) = show (fst p1) ++ "<-->" ++ show (snd p1) ++ "\n" ++ showPatterns patterns
 
 -----------------------------------------------------------------------------------------------------------------
---              TypeChecker                     --
+--              TypeChecker       -- Could probably be implemented with the use of a Reader monad
+                                  -- for carrying the contexts around. Should look into it.
 -- Value orthogonality
 (@@) :: V -> V -> Bool
 (InjL v1) @@ (InjR v2) = True
@@ -142,12 +152,19 @@ mytermTypeCheck delta psi EmptyTerm a = Right One
 mytermTypeCheck delta psi (XTerm x) a = Right (wrap $ matchTypes a (XTerm x) $ wrap $ myxType x $ xInContext x delta)
 --Typecheck term t and match resulting type with a. If it matches return a+b.
 mytermTypeCheck delta psi (InjLt t) (Sum a b) = Right $ Sum (wrap $ matchTypes a t $ wrap $ mytermTypeCheck delta psi t a) b
+--Typing clause for Recursive list Types empty lists.
+mytermTypeCheck delta psi (InjLt EmptyTerm) (Rec a) = Right $ Rec a --Valid????
 --Typecheck term t and match resulting type with b. If it matches return a+b.
 mytermTypeCheck delta psi (InjRt t) (Sum a b) = Right $ Sum a (wrap $ matchTypes b t $ wrap $ mytermTypeCheck delta psi t b)
+--TypeChecking clause for supporting Recursive list Types constructors (x:list)
+mytermTypeCheck delta psi (InjRt (PairTerm t1 t2)) (Rec a) = let a' = wrap $ mytermTypeCheck delta psi t1 a
+                                                                 recA = wrap $ mytermTypeCheck delta psi t2 (Rec a)
+                                                              in if (a' == a) then Right $ Rec a
+                                                                 else Left $ CustomError "Constructor pair is wrong:" (show t1 ++ ":" ++ show t2 ++ show a)
 --Typecheck t1 with a, t2 with b. If they succeed, return a * b --On pairs: differentiating the contexts for each t is necessary?
 mytermTypeCheck delta psi (PairTerm t1 t2) (Prod a b) = Right $ Prod (wrap $ mytermTypeCheck delta psi t1 a) $ wrap $ mytermTypeCheck delta psi t2 b
 --Typecheck the iso f, match t with the first part of resulting type ("input"). If they match, return type b
-mytermTypeCheck delta psi (Omega f t) b = let isoInputType = checkIsoReturnType b $ wrap $ isoTypeCheck delta psi f (Iso One b)
+mytermTypeCheck delta psi (Omega f t) b = let isoInputType = wrap $ checkIsoReturnType b $ wrap $ isoTypeCheck delta psi f (Iso (TypeVar 'a') b)
                                           in if (wrap $ mytermTypeCheck delta psi t isoInputType) == isoInputType then Right b
                                             else Left $ OmegaError "Omega input of the wrong type" (Omega f t)
 --Typecheck t1 and use resulting type to add variables from p to the context. Using the new context, typecheck t2 with type c.
@@ -161,7 +178,12 @@ valueTypeCheck ::  Delta -> V -> A  ->Either TypeErrors A
 valueTypeCheck delta EmptyV One = Right One
 valueTypeCheck delta (Xval x) a =  Right (wrap $ matchTypes a (XTerm x) $ wrap $ myxType x $ xInContext x delta)
 valueTypeCheck delta (InjL v) (Sum a b) = Right $ Sum (wrap $ matchTypes a v $ wrap $ valueTypeCheck delta v a) b
+valueTypeCheck delta (InjL (EmptyV)) (Rec a) = Right $ Rec a -- ??????
 valueTypeCheck delta (InjR v) (Sum a b) = Right $ Sum a (wrap $ matchTypes a v $ wrap $ valueTypeCheck delta v b)
+valueTypeCheck delta (InjR (PairV v1 v2)) (Rec a) = let a' = wrap $ valueTypeCheck delta v1 a -- ????
+                                                        recA = wrap $ valueTypeCheck delta v2 (Rec a)
+                                                    in if (a' == a) then Right $ Rec a
+                                                       else Left $ CustomError "Constructor pair is wrong:" (show v1 ++ ":" ++ show v2 ++ show a)
 valueTypeCheck delta (PairV v v2) (Prod a b) = Right $ Prod (wrap $ valueTypeCheck delta v a) $ wrap $ valueTypeCheck delta v2 b
 valueTypeCheck _ v a = Left $ CustomError "Value matching failed:" (show v ++ ":" ++ show a)
 --TypeChecking for special products cases. Not 100% ...
@@ -169,7 +191,7 @@ productsTypecheck :: Delta ->  P -> A -> Either TypeErrors A
 productsTypecheck delta (Xprod x) a = valueTypeCheck delta (Xval x) a
 productsTypecheck delta (PairP p1 p2) (Prod a b) = Right $ Prod (wrap $ productsTypecheck delta p1 a) $ wrap $ productsTypecheck delta p2 b
 productsTypecheck delta p _ = Left $ CustomError "Product typechecking error" (show p)
---TypeChecking for extendedValues. Needed?
+--TypeChecking for extendedValues. ?
 extendedValueTypeCheck :: Delta -> Psi -> E -> A -> Either TypeErrors A
 extendedValueTypeCheck delta psi (Val v) a = valueTypeCheck delta v a
 extendedValueTypeCheck delta psi (LetE p1 iso p2 e) a = let isoType = wrap $ getIsoTypes $ wrap $ isoTypeFromPsi $ isoLookup iso psi
@@ -185,14 +207,14 @@ isoTypeCheck :: Delta -> Psi -> Iso -> T -> Either TypeErrors T
 isoTypeCheck delta psi (IsoVar f) t = Right $ wrap $ matchIsoTypes t (IsoVar f) $ wrap $ fType f $ fInContext f psi
 --Add isoVariable f to context with type (a<->b) and typeCheck iso with resulting context and type t
 isoTypeCheck delta psi (Lambda f iso) (Comp a b t) =  Right (Comp a b $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f (Iso a b)) iso t)
---I'm pretty sure this is wrong. REDO it.
-isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = fst $ breakIsoType $ wrap $ isoTypeCheck delta psi iso1 t
+--This is wrong. REDO it.
+isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = fst $ breakIsoType $ wrap $ isoTypeCheck delta psi iso1 (Comp (TypeVar 'a') (TypeVar 'b') t)
                                             in if (wrap $ isoTypeCheck delta psi iso2 iso1Type) == iso1Type then Right t
                                           else Left $ AppError "Cannot app isos" iso1 iso2
 --Get lists of values and extendedValues and typeCheck them. If they are not all of the same value, wrap will catch it.
 --Create the orthogonal decomposition sets for both lists, if the creation fails we get a Left value caught by wrap.
 --Test that the values match Type a and extendedValues match type b. If so, typechecking succeeds, else we return an error.
-isoTypeCheck delta psi (Pattern list) (Iso a b) = let vList = map fst list
+isoTypeCheck delta psi (Clauses list) (Iso a b) = let vList = map fst list
                                                       eList = map snd list
                                                       vTypes = wrap $ valueTypes delta vList a
                                                       eTypes = debug("Values:" ++ show vTypes)
@@ -200,9 +222,19 @@ isoTypeCheck delta psi (Pattern list) (Iso a b) = let vList = map fst list
                                                       odA = wrap $ orthogonalDecomposition delta a [] vList
                                                       odB = wrap $ extOrthogonalDecomposition delta b [] eList
                                                   in if (eTypes == b && vTypes == a) then Right $ Iso a b
-                                                      else Left $ IsoError "Iso patterns dont match type:" (show (Pattern list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
+                                                      else Left $ IsoError "Iso Clausess dont match type:" (show (Clauses list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
+--Typecheck Fixpoints here.
+isoTypeCheck delta psi (Fixpoint f iso) t = if fixpointTerminates psi (Fixpoint f iso) -- Not implemented.
+                                              then Right $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f t) iso t
+                                            else Left $ FixpointError "Fixpoint does not terminate: " (show (Fixpoint f iso))
+                                  --If Fixpoint terminates in a finite context, then:
+                                --Right (Comp a b $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f (Iso a b)) iso (Comp a b t))
 --If typeChecking fails return a Left value with an error.
 isoTypeCheck _ _ iso t = Left $ IsoError "Could not match supplied iso" (show iso) (show t)
+
+--Check fixpoint termination...
+fixpointTerminates :: Psi -> Iso -> Bool
+fixpointTerminates _ _ = True
 
 addProductToContext :: Delta -> P -> A -> Delta
 addProductToContext delta (EmptyP) a = delta
@@ -235,9 +267,9 @@ myxType _ (Just v) = Right v -- Found the variable in the context, return its ty
 myxType x Nothing = Left $ VarError "Variable not in context: " x
 
 
-xType :: Maybe A -> A
-xType (Just v) = v -- Found the variable in the context, return its type
-xType Nothing = TypeError "Variable not in context"
+xType :: Maybe A -> Either TypeErrors A
+xType (Just v) = Right v -- Found the variable in the context, return its type
+xType Nothing = Left $ VarError "Variable not in context" ""
 
 --Lookup variable x in the supplied context. If variable is found, returns Just A, otherwise returns Nothing
 xInContext :: String -> Delta -> Maybe A
@@ -254,10 +286,10 @@ fInContext :: String -> Psi -> Maybe T
 fInContext f psi = lookup f psi
 
 --Returns iso input type if Iso's output type matches supplied b
-checkIsoReturnType ::  B -> T -> B
-checkIsoReturnType b (Iso a b') = if b' == b then a
-                                             else TypeError "Iso input type doesnt match Term"
-checkIsoReturnType b _ = TypeError "Iso is not a function"
+checkIsoReturnType ::  B -> T -> Either TypeErrors B
+checkIsoReturnType b (Iso a b') = if b' == b then Right a
+                                             else Left $ IsoError "Iso input type doesnt match Term" (show $ Iso a b') (show b)
+checkIsoReturnType b t = Left $ CustomError "Iso is not a function has type: " (show t)
 
 
 
@@ -285,15 +317,18 @@ breakIsoType t = error $ "Iso is not a computation" ++ show t
 --Receives two types, returning the type if they match, a TypeError otherwise.
 -- Argument type a is used to accept both Values and Terms, both of which have defined instances of Show.
 matchTypes :: Show a => A -> a -> B -> Either TypeErrors B
-matchTypes a t b
-        | a == b = Right a
-        | otherwise = Left $ VarError "Variable type doesnt match supplied A " (show t ++ ":" ++ show b ++ "not " ++ show a)
+matchTypes supplied t found
+        | supplied == found = Right supplied
+        | otherwise = Left $ VarError "Variable type doesnt match supplied A " (show t ++ ":" ++ show found ++ "not " ++ show supplied)
 
 --Match types of Iso, supplied to typechecker and found in context.
 matchIsoTypes :: T -> Iso -> T -> Either TypeErrors T
-matchIsoTypes a iso b
-        | a == b = Right a
-        | otherwise = Left $ VarError "IsoVariable type doesnt match supplied T " (show iso ++ ":" ++ show b ++ "not " ++ show a)
+matchIsoType (Iso (TypeVar a) b) iso (Iso a' b') --Used when I don't know iso "input" type beforehand, only care about it's ouput.
+        | b == b' = Right $ Iso a' b'
+        | otherwise = Left $ VarError "IsoVarible output type doesnt match supplied A" (show iso ++ ":" ++ show b' ++ "not" ++ show b)
+matchIsoTypes supplied iso found
+        | supplied == found = Right supplied
+        | otherwise = Left $ VarError "IsoVariable type doesnt match supplied T " (show iso ++ ":" ++ show found ++ "not " ++ show supplied)
 
 --Creates the set defining a OrthogonalDecomposition (OD) of value A.
 orthogonalDecomposition :: Delta -> A -> OD -> [V] -> Either TypeErrors OD
@@ -313,7 +348,7 @@ orthogonalDecomposition delta (Prod a b) od patterns = let s = breakPairs patter
                                                            freeValsV1 = freeValueVariables s
                                                            -- Se existe intersecçao de FreeVariables, retorna um conjunto Vazio, não é uma OD.
                                                            in if freeValIntersects freeValsV1 freeValsV2
-                                                                then Left $ OrthogonalDecomp "Patterns dont make an orthogonal Decomposition!" patterns
+                                                                then Left $ OrthogonalDecomp "Clausess dont make an orthogonal Decomposition!" patterns
                                                                 else Right patterns
 orthogonalDecomposition delta a od [] = Left $ OrthogonalDecomp "Cannot generate Orthogonal Decomposition:!" []
 --Definition of orthogonalDecomposition for extendedValues: OD(ExtVal) is true whenever OD(Val(ExtVal)) is true.
@@ -367,6 +402,56 @@ freeValIntersects fv1 fv2 = not . null $ fv1 `intersect` fv2
 errorOrType :: Either TypeErrors A -> V -> [V]
 errorOrType (Right a) v = [v]
 errorOrType (Left e) v = []
+
+
+------------------Semantics---didnt really understand this
+type Sigma = [(String,V)]
+
+support :: Sigma -> [String]
+support [] = []
+support (vx:sigma) = fst vx : support sigma
+
+matching:: Sigma -> Term -> V -> Sigma
+matching sigma EmptyTerm EmptyV = []
+matching sigma (XTerm x) w = (x,w) : sigma
+matching sigma (InjLt v) (InjL w) = matching sigma v w
+matching sigma (InjRt v) (InjR w) = matching sigma v w
+matching sigma (PairTerm v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
+                                                      sig2 = matching sigma v2 w2
+                                                      in case (support sig1) `intersect` (support sig2) of
+                                                            [] -> sig1 `union`sig2
+                                                            otherwise -> error "Support Lists intersect"
+
+replace::  Term -> Sigma -> V
+replace (EmptyTerm) sig= EmptyV
+replace (XTerm x) sig  = case lookup (x) sig of
+                          Nothing -> error "Did not find term"
+                          Just v -> v
+replace (InjLt v) sig  = InjL $ replace v sig
+replace (InjRt v) sig  = InjR $ replace v sig
+replace (PairTerm v1 v2) sig  = PairV (replace v1 sig) (replace v2 sig)
+
+
+-- reduction:: Term -> V
+-- reduction (Let (PairP p1 p2) v1 t2) = replace t2 $ semantics [] p v1 --LetE
+
+
+-- reduction2:: Iso -> V -> V
+-- reduction2 (Clauses ve) v = case matchAll ve v of
+--                               Left () -> error "No matching v"
+--                               Right (sig,e) -> replace e sig
+--
+-- matchAll:: [(V,E)] -> V -> Either () (Sigma,E)
+-- matchALl [] v = Left ()
+-- matchAll (ve:list) v = case semantics [] (fst ve) v of
+--                           []  -> matchAll (head list) v
+--                           sig -> Right (sig,snd ve)
+--
+
+-------------------------------------- REDUCTION RULES
+
+
+
 
 --(.) :: (b -> c) -> (a -> b) -> a -> c
 

@@ -16,19 +16,50 @@ test1 = let x = Xval "x"
             h = IsoVar "h"
             e1 = LetE (Xprod "y") g (Xprod "x") (Val p1)
             e2 = LetE (Xprod "y") h (Xprod "x") (Val p2)
-            iso1 = Pattern [(v1,e1),(v2,e2)]
+            iso1 = Clauses [(v1,e1),(v2,e2)]
             lambdaH = Lambda "h" iso1
             lambdaG = Lambda "g" lambdaH
             bool = Sum One One
-            boolXb = Prod bool One
-            t1 = One
-            t2 = Iso boolXb boolXb
-            isoT1 = Comp bool bool t2
-            isoType = Comp bool bool isoT1
+            a = One
+            b = One
+            boolXa = Prod bool a
+            boolXb = Prod bool b
+            isoAb = (Iso a b)
+            t2 = Iso boolXa boolXb
+            isoT1 = Comp a b t2
+            isoType = Comp a b isoT1
             delta = [("x",One)]
             psi = []
-            --Not working properly yet- Haven't implemented typeChecking for ExtendedValues
             in ("Type:" ++ show (typeCheck delta psi lambdaG isoType) )
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
-main = putStr test1
+testMap :: String
+testMap =
+  let a = TypeVar 'a'
+      b = TypeVar 'b'
+      aB = Iso a b
+      x = Xval "x"
+      y = Xval "y"
+      h = Xval "h"
+      t = Xval "t"
+      recursiveA = Rec a
+      recursiveB = Rec b
+      emptyList = InjL EmptyV
+      l1 = PairV t emptyList
+      l2 = InjR (PairV h l1)
+      e1 = Val emptyList
+      f = IsoVar "f"
+      g = IsoVar "g"
+      eE = LetE (Xprod "y") f (Xprod "t") (Val (InjR $ PairV x y))
+      e2 = LetE (Xprod "x") g (Xprod "h") eE
+      func = Clauses [(emptyList,e1),(l2,e2)]
+      fixPf = Fixpoint "f" func
+      lamG = Lambda "g" fixPf
+      funType = Iso recursiveA recursiveB
+      isoType = Comp a b funType
+      delta = [("h",a),("t",recursiveA)]
+      psi = []
+      in ("Type2: " ++ show (typeCheck delta psi lamG isoType))
+
+
+main = putStr testMap
