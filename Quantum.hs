@@ -1,12 +1,15 @@
 module Quantum where
 import Data.Complex
 import Data.List
+
+import Data.Matrix -- Needs installing via Cabal
 import Debug.Trace
+-- import Linear.Matrix -- Needs installing via Cabal
 
 --Debugging flag-
 doDebug = False
 --Making debug statements easier to use
-debug a b = if doDebug then trace a b else b
+debug a b = if doDebug then Debug.Trace.trace a b else b
 --Remember to remove debugging statements after checks
 
 data A =  One -- 1
@@ -32,21 +35,25 @@ data V =  EmptyV
         | InjR V
         | PairV V V
         deriving(Eq)
+-- data CombVals = CVal V
+--         | Combination CombVals CombVals
+--         | AlphaVal (Alpha Double) CombVals
+--         deriving(Eq,Show)
 data P =  EmptyP
         | Xprod String --Equivale ao par <(),x>
         | PairP P P
         deriving(Eq)
 data E =  Val V
         | LetE P Iso P E
+        | Combination E E
+        | AlphaVal (Alpha Double) E
         deriving(Eq,Show)
-
 data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso
-        | Clauses [(V,E)]
+        | Clauses [(V,E)] --(V,CombVals?)
         | Fixpoint String Iso
         deriving(Eq)
-
 data Term = EmptyTerm
         | XTerm String
         | InjLt Term
@@ -54,6 +61,9 @@ data Term = EmptyTerm
         | PairTerm Term Term
         | Omega Iso Term
         | Let P Term Term
+        -- EXTENSION TERMS
+        | CombTerms Term Term
+        | AlphaTerm (Alpha Double) Term
         deriving(Eq)
 
 data TypeErrors = VarError String String
@@ -66,7 +76,7 @@ data TypeErrors = VarError String String
         | OrthogonalDecomp String [V]
         | CustomError String String
         | FixpointError String String
-        deriving(Show)
+        deriving(Show,Eq)
 
 type Alpha = Complex
 
@@ -170,7 +180,13 @@ mytermTypeCheck delta psi (Omega f t) b = let isoInputType = wrap $ checkIsoRetu
 --Typecheck t1 and use resulting type to add variables from p to the context. Using the new context, typecheck t2 with type c.
 mytermTypeCheck delta psi (Let p t1 t2) c = let newDelta = wrap $ addToContext delta p $ wrap $ mytermTypeCheck delta psi t1 c
                                               in Right $ wrap $ mytermTypeCheck newDelta psi t2 c
---Whenever typeChecking fails, we return a Left value showing the matching error. Could make it more descriptive?
+mytermTypeCheck delta psi (CombTerms t1 t2) c = let t1Type = mytermTypeCheck delta psi t1 c
+                                                    t2Type = mytermTypeCheck delta psi t2 c --
+                                                in if t1Type == t2Type then Right c -- Only passes if terms are of the same type and same FreeVariables
+                                                                                    -- Need to Implement test for FreeVariables of both terms.
+                                                   else Left $ CustomError "Term combination failed, terms not of same type:" (show t1 ++ ":" ++ show t1Type ++ show t2 ++ ":" ++ show t2Type)
+mytermTypeCheck delta psi (AlphaTerm a t) c = mytermTypeCheck delta psi t c -- Typechecking doesn't care about the alpha.
+--Whenever typeChecking fails, return a Left value showing the matching error. Could make it more descriptive?
 mytermTypeCheck _ _ t a = Left $ CustomError "Cannot match term and type:" (show t ++ " : " ++ show a)
 
 --TypeChecking for values, same behavior as termTypeCheck
@@ -200,16 +216,30 @@ extendedValueTypeCheck delta psi (LetE p1 iso p2 e) a = let isoType = wrap $ get
                                                           in if(fst isoType == p2Type)
                                                               then valueTypeCheck (addProductToContext delta p1 $ snd isoType) bottomVal a
                                                              else Left $ ProdError "Product not input of Iso" p2
+extendedValueTypeCheck delta psi (Combination e1 e2) a = let e1Type = wrap $ extendedValueTypeCheck delta psi e1 a
+                                                             e2Type = wrap $ extendedValueTypeCheck delta psi e2 a
+                                                             in if(e1Type == e2Type && e1Type == a) then Right a
+                                                                else Left $ CustomError "Combination of extendedValues of differing types" ("e1:" ++ show e1Type ++ " " ++ "e1:" ++ show e2Type)
+extendedValueTypeCheck delta psi (AlphaVal alpha e) a = extendedValueTypeCheck delta psi e a
+-- checkLinearCombinationExtVals :: Delta -> Psi -> E -> A -> Either TypeErrors A
+-- checkLinearCombinationExtVals _ _ (Val []) a = Right a
+-- checkLinearCombinationExtVals delta psi (Val alphaV:vals) a = if valueTypeCheck delta (snd alphaV) a == (Right a) then
+--                                                                 checkLinearCombinationExtVals delta psi (Val vals) a
+--                                                               else Left $ CustomError "Linear Combination of ExtVals failed typechecking" ""
 
 -- TypeChecking function for isomorphisms.
 isoTypeCheck :: Delta -> Psi -> Iso -> T -> Either TypeErrors T
 --Check that iso variable is in the context with matching type t.
+isoTypeCheck delta psi (IsoVar f) (Comp (TypeVar a) b t) = Right $ wrap $ fType f $ fInContext f psi -- Case where variable is an already typed function. Eg: Iso application f (g term), f needs to be an already declared iso.
 isoTypeCheck delta psi (IsoVar f) t = Right $ wrap $ matchIsoTypes t (IsoVar f) $ wrap $ fType f $ fInContext f psi
 --Add isoVariable f to context with type (a<->b) and typeCheck iso with resulting context and type t
 isoTypeCheck delta psi (Lambda f iso) (Comp a b t) =  Right (Comp a b $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f (Iso a b)) iso t)
---This is wrong. REDO it.
-isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = fst $ breakIsoType $ wrap $ isoTypeCheck delta psi iso1 (Comp (TypeVar 'a') (TypeVar 'b') t)
-                                            in if (wrap $ isoTypeCheck delta psi iso2 iso1Type) == iso1Type then Right t
+--Iso application. Since isos don't carry type annotations, typecheck iso1 with a dummy type consisting of TypeVars in order to get back the real type
+isoTypeCheck delta psi (App iso1 iso2) t = let iso1Type = breakIsoType $ wrap $ isoTypeCheck delta psi iso1 (Comp (TypeVar 'a') (TypeVar 'b') t)
+                                               iso1Left = fst iso1Type
+                                               iso1Right = snd iso1Type
+                                               --Check that Left-hand size of Type is the same as iso2's type AND that Right-hand side equals application type
+                                            in if (wrap $ isoTypeCheck delta psi iso2 iso1Left) == iso1Left && iso1Right == t then Right t
                                           else Left $ AppError "Cannot app isos" iso1 iso2
 --Get lists of values and extendedValues and typeCheck them. If they are not all of the same value, wrap will catch it.
 --Create the orthogonal decomposition sets for both lists, if the creation fails we get a Left value caught by wrap.
@@ -221,7 +251,10 @@ isoTypeCheck delta psi (Clauses list) (Iso a b) = let vList = map fst list
                                                                 wrap $ extendedValueTypes delta psi eList b
                                                       odA = wrap $ orthogonalDecomposition delta a [] vList
                                                       odB = wrap $ extOrthogonalDecomposition delta b [] eList
-                                                  in if (eTypes == b && vTypes == a) then Right $ Iso a b
+                                                      unitary = testUnit eList
+                                                  in if (eTypes == b && vTypes == a) then
+                                                        if(unitary) then Right $ Iso a b
+                                                        else Left $ IsoError "Not a unitary Matrix!" "\n" (show (Clauses list))
                                                       else Left $ IsoError "Iso Clausess dont match type:" (show (Clauses list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
 --Typecheck Fixpoints here.
 isoTypeCheck delta psi (Fixpoint f iso) t = if fixpointTerminates psi (Fixpoint f iso) -- Not implemented.
@@ -404,6 +437,29 @@ errorOrType (Right a) v = [v]
 errorOrType (Left e) v = []
 
 
+testUnit::[E]->Bool
+testUnit = isUnitary . getLinearTerms
+
+isUnitary :: [[Alpha Double]] -> Bool
+isUnitary lists = let mat = fromLists lists --Create matrix from lists
+                      conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
+                      inverseMat = inverse mat --The inverse matrix
+                      in if (Right conjugateTranspose) == inverseMat then True --Test unitarity
+                         else False
+
+getLinearAlphas :: E -> [Alpha Double]
+getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2
+getLinearAlphas (Combination (Val v) v2) = (1 :+ 0) : getLinearAlphas v2 -- 1*CVal = CVal
+getLinearAlphas (Val v) = (1 :+ 0):[]
+getLinearAlphas (AlphaVal a _) = a:[]
+getLinearAlphas (LetE _ _ _ e) = getLinearAlphas e
+
+getLinearTerms :: [E] ->[[Alpha Double]]
+getLinearTerms [] = []
+getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist
+
+
+
 ------------------Semantics---didnt really understand this
 type Sigma = [(String,V)]
 
@@ -417,8 +473,8 @@ matching sigma (XTerm x) w = (x,w) : sigma
 matching sigma (InjLt v) (InjL w) = matching sigma v w
 matching sigma (InjRt v) (InjR w) = matching sigma v w
 matching sigma (PairTerm v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
-                                                      sig2 = matching sigma v2 w2
-                                                      in case (support sig1) `intersect` (support sig2) of
+                                                     sig2 = matching sigma v2 w2
+                                                     in case (support sig1) `intersect` (support sig2) of
                                                             [] -> sig1 `union`sig2
                                                             otherwise -> error "Support Lists intersect"
 

@@ -1,7 +1,7 @@
 module Main where
 
 import Quantum
-
+import Data.Complex
 --Testing case for parametrized conditional.
 test1 :: String
 test1 = let x = Xval "x"
@@ -14,8 +14,10 @@ test1 = let x = Xval "x"
             pterm = PairTerm (InjRt EmptyTerm) (XTerm "x")
             g = IsoVar "g"
             h = IsoVar "h"
-            e1 = LetE (Xprod "y") g (Xprod "x") (Val p1)
-            e2 = LetE (Xprod "y") h (Xprod "x") (Val p2)
+            e1 = LetE (Xprod "y") g (Xprod "x")
+                        (Combination (AlphaVal (1:+0) (Val p1)) (AlphaVal (0:+0) (Val p2)))
+            e2 = LetE (Xprod "y") h (Xprod "x")
+                        (Combination (AlphaVal (0:+0) (Val p1)) (AlphaVal (1:+0) (Val p2)))
             iso1 = Clauses [(v1,e1),(v2,e2)]
             lambdaH = Lambda "h" iso1
             lambdaG = Lambda "g" lambdaH
@@ -62,4 +64,4 @@ testMap =
       in ("Type2: " ++ show (typeCheck delta psi lamG isoType))
 
 
-main = putStr testMap
+main = putStr test1
