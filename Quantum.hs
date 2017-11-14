@@ -7,7 +7,7 @@ import Debug.Trace
 -- import Linear.Matrix -- Needs installing via Cabal
 
 --Debugging flag-
-doDebug = False
+doDebug = True
 --Making debug statements easier to use
 debug a b = if doDebug then Debug.Trace.trace a b else b
 --Remember to remove debugging statements after checks
@@ -146,7 +146,7 @@ showPatterns (p1:patterns) = show (fst p1) ++ "<-->" ++ show (snd p1) ++ "\n" ++
 
 --Function used to wrap evaluations of functions tha may raise a typing error.
 --We use to avoid creating multiple conditionals on the function definitions. Needs a better name!!!
-wrap :: Either TypeErrors a -> a
+wrap :: Show b => Either b a -> a
 wrap (Left err) = error (show err)
 wrap (Right val) = val
 
@@ -214,7 +214,8 @@ extendedValueTypeCheck delta psi (LetE p1 iso p2 e) a = let isoType = wrap $ get
                                                             p2Type = wrap $ productsTypecheck delta p2 $ fst isoType
                                                             bottomVal = bottomValue e
                                                           in if(fst isoType == p2Type)
-                                                              then valueTypeCheck (addProductToContext delta p1 $ snd isoType) bottomVal a
+                                                              then debug("LetExtVal: adding p1 to context:" ++ (show p1))
+                                                                    valueTypeCheck (addProductToContext delta p1 $ snd isoType) bottomVal a
                                                              else Left $ ProdError "Product not input of Iso" p2
 extendedValueTypeCheck delta psi (Combination e1 e2) a = let e1Type = wrap $ extendedValueTypeCheck delta psi e1 a
                                                              e2Type = wrap $ extendedValueTypeCheck delta psi e2 a
@@ -253,7 +254,7 @@ isoTypeCheck delta psi (Clauses list) (Iso a b) = let vList = map fst list
                                                       odB = wrap $ extOrthogonalDecomposition delta b [] eList
                                                       unitary = testUnit eList
                                                   in if (eTypes == b && vTypes == a) then
-                                                        if(unitary) then Right $ Iso a b
+                                                        if(unitary) then Right $ Iso a b --Separate the tests to specify the error.
                                                         else Left $ IsoError "Not a unitary Matrix!" "\n" (show (Clauses list))
                                                       else Left $ IsoError "Iso Clausess dont match type:" (show (Clauses list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
 --Typecheck Fixpoints here.
@@ -336,9 +337,12 @@ valueTypes delta (v:vals) a = if (wrap $ valueTypeCheck delta v a) == a then deb
 
 --Implementar a função para verificar os tipos dos ExtendedValues!!
 extendedValueTypes :: Delta -> Psi -> [E] -> B -> Either TypeErrors B
-extendedValueTypes delta psi ((LetE p1 iso p2 e):listE) b = Right b
-extendedValueTypes delta psi eList b = let bottomVals = map bottomValue eList
-                                        in valueTypes delta bottomVals b
+extendedValueTypes delta psi [] b = Right b
+extendedValueTypes delta psi (e1:listE) b = -- debug ("extValTypes..")
+                                              if (b == wrap (extendedValueTypeCheck delta psi e1 b) )
+                                                then extendedValueTypes delta psi listE b
+                                              else Left $ CustomError "Extended Value not matching Type" (show e1 ++ " : "++ show b)
+
 
 addIsoNameToPsi :: Psi -> String -> T -> Psi
 addIsoNameToPsi psi f t = (f,t) : psi
@@ -420,6 +424,8 @@ getSndFromPair (PairV p1 p2) = p2
 bottomValue :: E -> V
 bottomValue (Val v) = v
 bottomValue (LetE p1 iso p2 e) = bottomValue e
+bottomValue (Combination e1 e2) = bottomValue e1
+bottomValue (AlphaVal alpha e) = bottomValue e
 
 freeValueVariables :: [V] -> [String]
 freeValueVariables [] = []
@@ -441,11 +447,15 @@ testUnit::[E]->Bool
 testUnit = isUnitary . getLinearTerms
 
 isUnitary :: [[Alpha Double]] -> Bool
-isUnitary lists = let mat = fromLists lists --Create matrix from lists
+isUnitary lists = let mat =  debug(show lists ++ "\n")
+                              fromLists lists --Create matrix from lists
                       conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
-                      inverseMat = inverse mat --The inverse matrix
-                      in if (Right conjugateTranspose) == inverseMat then True --Test unitarity
-                         else False
+                      inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
+                                    wrap $ inverse mat --The inverse matrix
+                      in if (conjugateTranspose) == inverseMat then debug("InverseMat: \n" ++ show inverseMat ++ "\n")
+                                                                            True --Test unitarity
+                         else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
+                                False
 
 getLinearAlphas :: E -> [Alpha Double]
 getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2
