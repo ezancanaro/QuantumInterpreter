@@ -4,6 +4,7 @@ import Data.List
 
 import Data.Matrix -- Needs installing via Cabal
 import Debug.Trace
+import Numeric.Fixed
 -- import Linear.Matrix -- Needs installing via Cabal
 
 --Debugging flag-
@@ -46,7 +47,7 @@ data P =  EmptyP
 data E =  Val V
         | LetE P Iso P E
         | Combination E E
-        | AlphaVal (Alpha Double) E
+        | AlphaVal (Alpha Fixed) E
         deriving(Eq,Show)
 data Iso = Lambda String Iso
         | IsoVar String
@@ -63,7 +64,7 @@ data Term = EmptyTerm
         | Let P Term Term
         -- EXTENSION TERMS
         | CombTerms Term Term
-        | AlphaTerm (Alpha Double) Term
+        | AlphaTerm (Alpha Fixed) Term
         deriving(Eq)
 
 data TypeErrors = VarError String String
@@ -197,9 +198,12 @@ valueTypeCheck delta (InjL v) (Sum a b) = Right $ Sum (wrap $ matchTypes a v $ w
 valueTypeCheck delta (InjL (EmptyV)) (Rec a) = Right $ Rec a -- ??????
 valueTypeCheck delta (InjR v) (Sum a b) = Right $ Sum a (wrap $ matchTypes a v $ wrap $ valueTypeCheck delta v b)
 valueTypeCheck delta (InjR (PairV v1 v2)) (Rec a) = let a' = wrap $ valueTypeCheck delta v1 a -- ????
-                                                        recA = wrap $ valueTypeCheck delta v2 (Rec a)
-                                                    in if (a' == a) then Right $ Rec a
-                                                       else Left $ CustomError "Constructor pair is wrong:" (show v1 ++ ":" ++ show v2 ++ show a)
+                                                        recA = debug("Checking: " ++ (show v2))
+                                                                wrap $ valueTypeCheck delta v2 (Rec a)
+                                                    in case recA of
+                                                        Rec r -> if (a' == a) then Right $ Rec a
+                                                                   else Left $ CustomError "Constructor pair is wrong:" (show v1 ++ ":" ++ show v2 ++ show a)
+                                                        otherwise -> Left $ CustomError "Right element of pair not a list" (show (PairV v1 v2))
 valueTypeCheck delta (PairV v v2) (Prod a b) = Right $ Prod (wrap $ valueTypeCheck delta v a) $ wrap $ valueTypeCheck delta v2 b
 valueTypeCheck _ v a = Left $ CustomError "Value matching failed:" (show v ++ ":" ++ show a)
 --TypeChecking for special products cases. Not 100% ...
@@ -212,10 +216,10 @@ extendedValueTypeCheck :: Delta -> Psi -> E -> A -> Either TypeErrors A
 extendedValueTypeCheck delta psi (Val v) a = valueTypeCheck delta v a
 extendedValueTypeCheck delta psi (LetE p1 iso p2 e) a = let isoType = wrap $ getIsoTypes $ wrap $ isoTypeFromPsi $ isoLookup iso psi
                                                             p2Type = wrap $ productsTypecheck delta p2 $ fst isoType
-                                                            bottomVal = bottomValue e
+                                                            --bottomVal = bottomValue e
                                                           in if(fst isoType == p2Type)
-                                                              then debug("LetExtVal: adding p1 to context:" ++ (show p1))
-                                                                    valueTypeCheck (addProductToContext delta p1 $ snd isoType) bottomVal a
+                                                              then debug("LetExtVal: adding p1 to context:" ++ (show p1) ++ ": " ++ (show (snd isoType)))
+                                                                    extendedValueTypeCheck (addProductToContext delta p1 $ snd isoType) psi e a
                                                              else Left $ ProdError "Product not input of Iso" p2
 extendedValueTypeCheck delta psi (Combination e1 e2) a = let e1Type = wrap $ extendedValueTypeCheck delta psi e1 a
                                                              e2Type = wrap $ extendedValueTypeCheck delta psi e2 a
@@ -446,7 +450,7 @@ errorOrType (Left e) v = []
 testUnit::[E]->Bool
 testUnit = isUnitary . getLinearTerms
 
-isUnitary :: [[Alpha Double]] -> Bool
+isUnitary :: [[Alpha Fixed]] -> Bool
 isUnitary lists = let mat =  debug(show lists ++ "\n")
                               fromLists lists --Create matrix from lists
                       conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
@@ -457,14 +461,14 @@ isUnitary lists = let mat =  debug(show lists ++ "\n")
                          else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
                                 False
 
-getLinearAlphas :: E -> [Alpha Double]
+getLinearAlphas :: E -> [Alpha Fixed]
 getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2
 getLinearAlphas (Combination (Val v) v2) = (1 :+ 0) : getLinearAlphas v2 -- 1*CVal = CVal
 getLinearAlphas (Val v) = (1 :+ 0):[]
 getLinearAlphas (AlphaVal a _) = a:[]
 getLinearAlphas (LetE _ _ _ e) = getLinearAlphas e
 
-getLinearTerms :: [E] ->[[Alpha Double]]
+getLinearTerms :: [E] ->[[Alpha Fixed]]
 getLinearTerms [] = []
 getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist
 

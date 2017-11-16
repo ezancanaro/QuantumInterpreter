@@ -2,6 +2,9 @@ module Main where
 
 import Quantum
 import Data.Complex
+import Numeric.Fixed
+import Control.Monad
+import System.Exit
 --Testing case for parametrized conditional.
 test1 :: String
 test1 = let x = Xval "x"
@@ -32,7 +35,7 @@ test1 = let x = Xval "x"
             isoType = Comp a b isoT1
             delta = [("x",One)]
             psi = []
-            in ("Type:" ++ show (typeCheck delta psi lambdaG isoType) )
+            in ("If Type:" ++ show (typeCheck delta psi lambdaG isoType) )
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
 testMap :: String
@@ -47,13 +50,13 @@ testMap =
       recursiveA = Rec a
       recursiveB = Rec b
       emptyList = InjL EmptyV
-      l1 = PairV t emptyList
-      l2 = InjR (PairV h l1)
-      e1 = (Combination (AlphaVal (1:+0) (Val emptyList)) (AlphaVal (0:+0) (Val emptyList)))
+      l1 = InjR (PairV emptyList emptyList)
+      l2 = InjR (PairV h t)
+      e1 = (Combination (Val emptyList) (AlphaVal (0:+0) (Val emptyList)))
       f = IsoVar "f"
       g = IsoVar "g"
       eE = LetE (Xprod "y") f (Xprod "t")
-              (Combination (AlphaVal (0:+0) (Val emptyList)) (AlphaVal (1:+0) (Val (InjR $ PairV x y))))
+              (Combination (AlphaVal (0:+0) (Val (InjR $ PairV x y))) (Val (InjR $ PairV x y)))
       e2 = LetE (Xprod "x") g (Xprod "h") eE
       func = Clauses [(emptyList,e1),(l2,e2)]
       fixPf = Fixpoint "f" func
@@ -62,13 +65,15 @@ testMap =
       isoType = Comp a b funType
       delta = [("h",a),("t",recursiveA)]
       psi = []
-      in ("Type2: " ++ show (typeCheck delta psi lamG isoType))
+      in ("Map Type: " ++ show (typeCheck delta psi lamG isoType))
 
 testHad :: String
 testHad = let tt = InjL EmptyV
               ff = InjR EmptyV
-              alpha = (1/sqrt(2) :+ 0)
-              beta = ((-1/sqrt(2)) :+ 0)
+              a1 = toFixed (1/sqrt(2))
+              a2 = toFixed (-1/sqrt(2))
+              alpha = (a1 :+ 0)
+              beta = ( a2 :+ 0)
               eTT = Val tt
               eFF = Val ff
               e1 = Combination (AlphaVal alpha eTT) (AlphaVal alpha eFF)
@@ -78,12 +83,117 @@ testHad = let tt = InjL EmptyV
               isoType = Iso bool bool
               delta = []
               psi = []
-              in ("Type:" ++ show (typeCheck delta psi had isoType) )
+              in ("Had Type:" ++ show (typeCheck delta psi had isoType) )
+
+testMapAcc :: String
+testMapAcc =  let a = TypeVar 'a'
+                  b = TypeVar 'b'
+                  c = TypeVar 'c'
+                  x = Xval "x"
+                  y = Xval "y"
+                  h = Xval "h"
+                  t = Xval "t"
+                  z = Xval "z"
+                  h' = Xval "h'"
+                  t' = Xval "t'"
+                  recursiveC = Rec c
+                  recursiveB = Rec b
+                  emptyList = InjL EmptyV
+                  xEmpty = PairV x emptyList
+                  tl = PairV t emptyList
+                  ht = InjR (PairV h t)
+                  xHT = PairV x ht
+
+                  yh' = PairP (Xprod "y") (Xprod "h'")
+                  xh = PairP (Xprod "x") (Xprod "h")
+                  yt = PairP (Xprod "y") (Xprod "t")
+                  zt' = PairP (Xprod "z") (Xprod "t'")
+
+                  tl' = PairV t' emptyList
+                  h't' = InjR (PairV h' t')
+                  zh't' = Val (PairV z h't')
+
+                  let1E = Combination (AlphaVal (0:+0) zh't') zh't'
+
+                  f = IsoVar "f"
+                  g = IsoVar "g"
+                  let1 = LetE zt' f yt let1E
+                  let2 = LetE yh' g xh let1
+                  e1 = Combination (Val xEmpty) (AlphaVal (0:+0) (Val xEmpty))
+                  e2 = let2
+
+                  func = Clauses [(xEmpty,e1),(xHT,e2)]
+                  fixPf = Fixpoint "f" func
+                  lamG = Lambda "g" fixPf
+
+                  aXb = Prod a b
+                  aXc = Prod a c
+                  aXrecB = Prod a recursiveB
+                  aXrecC = Prod a recursiveC
+                  gType = Iso aXb aXc
+                  funType = Iso aXrecB aXrecC
+
+                  isoType = Comp aXb aXc funType
+                  delta = [("x",a),("h",b),("t",recursiveB)]
+                  psi = []
+                  in ("MapAcc Type: " ++ show (typeCheck delta psi lamG isoType))
+
+testCnot :: String
+testCnot = let  bool = Sum One One
+                recBool = Rec bool
+                recBoolXbool = Prod recBool bool
+                emptyList = InjL EmptyV
+                tb = Xval "tb"
+                cbs = Xval "cbs"
+                ff = InjR EmptyV
+                tt = InjL EmptyV
+                tb' = Xprod "tb'"
+                tb'v = Xval "tb'"
+                cbs' = Xprod "cbs'"
+                noT = IsoVar "not"
+                emptyTb = PairV emptyList tb
+                emptyTb' = Val (PairV emptyList (Xval "tb'"))
+                ffCBS = InjR (PairV ff cbs)
+                ttCBS = InjR (PairV tt cbs)
+                ffCBStb = PairV ffCBS tb
+                ttCBStb = PairV ttCBS tb
+                cbs'tb' = PairP cbs' tb'
+                cbstb = PairP (Xprod "cbs") (Xprod "tb")
+                ttCBS' = InjR (PairV tt (Xval "cbs'"))
+                ttCBS'tb' = PairV ttCBS' (Xval "tb'")
+                f = IsoVar "f"
+
+                comb1' = Combination (AlphaVal (0:+0) (Val emptyTb)) (AlphaVal (0:+0) (Val emptyTb))
+                comb2' = Combination (Val ffCBStb) (AlphaVal (0:+0) (Val ffCBStb))
+                comb3' = Combination (AlphaVal (0:+0) (Val ttCBS'tb')) (Val ttCBS'tb')
+                comb1 = Combination (Val emptyTb) comb1'
+                comb2 = Combination (AlphaVal (0:+0) (Val ffCBStb)) comb2'
+                comb3 = Combination (AlphaVal (0:+0) (Val ttCBS'tb')) comb3'
+
+                let1 = LetE tb' noT (Xprod "tb") comb1
+                extV = comb2
+                let2 = LetE cbs'tb' f cbstb comb3
+
+                fun = Clauses [(emptyTb,let1),(ffCBStb,extV),(ttCBStb,let2)]
+                cnot = Fixpoint "f" fun
+
+                isoType = Iso recBoolXbool recBoolXbool
+                delta = [("tb",bool),("cbs",recBool)]
+                psi = [("not",Iso bool bool)]
+
+                in ("Cnot Type: " ++ show (typeCheck delta psi cnot isoType))
 
 main = do
-        putStr ("testes: if | map | had \n")
+        putStr ("tests: if | map | had | mapAcc | cnot --Input quit to stop.\n ")
         f <- getLine
         case f of
-          "had" ->   putStr testHad
-          "if" -> putStr test1
+          "had" -> putStr testHad
+          "if" ->  putStr test1
           "map" -> putStr testMap
+          "mapAcc" -> putStr testMapAcc
+          "cnot" -> putStr testCnot
+
+          "quit" -> exitSuccess
+          otherwise -> putStr "That function is not defined"
+        putStr "\n\n\n"
+        main
