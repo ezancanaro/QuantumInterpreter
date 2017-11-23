@@ -5,6 +5,29 @@ import Data.Complex
 import Numeric.Fixed
 import Control.Monad
 import System.Exit
+
+
+
+hadIso :: Iso
+hadIso = let  tt = InjL EmptyV
+              ff = InjR EmptyV
+              a1 = toFixed (1/sqrt(2))
+              a2 = toFixed (-1/sqrt(2))
+              alpha = (a1 :+ 0)
+              beta = ( a2 :+ 0)
+              eTT = Val tt
+              eFF = Val ff
+              e1 = Combination (AlphaVal alpha eTT) (AlphaVal alpha eFF)
+              e2 = Combination (AlphaVal alpha eTT) (AlphaVal beta eFF)
+              had = Clauses [(tt,e1),(ff,e2)]
+              bool = Sum One One
+              isoType = Iso bool bool
+              delta = []
+              psi = []
+              check = Omega had (InjLt EmptyTerm)
+              in had
+
+
 --Testing case for parametrized conditional.
 test1 :: String
 test1 = let x = Xval "x"
@@ -35,7 +58,10 @@ test1 = let x = Xval "x"
             isoType = Comp a b isoT1
             delta = [("x",One)]
             psi = []
+            had = hadIso
+            check = Omega (App lambdaG (App had had)) (PairTerm (InjLt EmptyTerm) EmptyTerm)
             in ("If Type:" ++ show (typeCheck delta psi lambdaG isoType) )
+              ++ "\nEvals to:\n\t" ++ show (applicativeContext check)
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
 testMap :: String
@@ -65,7 +91,10 @@ testMap =
       isoType = Comp a b funType
       delta = [("h",a),("t",recursiveA)]
       psi = []
+      had = hadIso
+      check = Omega (App lamG had) (InjLt EmptyTerm)
       in ("Map Type: " ++ show (typeCheck delta psi lamG isoType))
+      --  ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
 
 testHad :: String
 testHad = let tt = InjL EmptyV
@@ -83,7 +112,9 @@ testHad = let tt = InjL EmptyV
               isoType = Iso bool bool
               delta = []
               psi = []
+              check = Omega had (InjLt EmptyTerm)
               in ("Had Type:" ++ show (typeCheck delta psi had isoType) )
+                ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
 
 testMapAcc :: String
 testMapAcc =  let a = TypeVar 'a'
@@ -183,8 +214,50 @@ testCnot = let  bool = Sum One One
 
                 in ("Cnot Type: " ++ show (typeCheck delta psi cnot isoType))
 
+testTerms :: String
+testTerms = let  bool = Sum One One
+                 empty = EmptyTerm
+                 x = XTerm "x"
+                 y = XTerm "y"
+                 injL = InjLt x
+                 injR = InjRt y
+                 xy = PairTerm x y
+                 iso = IsoVar "exampleIso"
+                 omega = Omega iso y
+                 letT = Let (Xprod "x") omega x
+                 comb = CombTerms x y
+                 alpha1 = AlphaTerm (1:+0) x
+                 alpha2 = AlphaTerm (1:+0) y
+                 comb2 = CombTerms alpha1 alpha2
+                 isoType = Iso bool bool
+                 delta = [("y",bool)]
+                 delta2 = [("y",bool),("x",bool)]
+                 psi = [("exampleIso",isoType)]
+                 in  (show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
+                        ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
+                          ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
+
+testNotEval :: String
+testNotEval = let  bool = Sum One One
+                   tt = InjR EmptyV
+                   ttTerm = InjRt EmptyTerm
+                   ff = InjL EmptyV
+                   ffTerm = InjLt EmptyTerm
+                   ttE = Val tt
+                   ffE = Val ff
+                   alpha1 = AlphaVal (1:+0) ttE
+                   alpha2 = AlphaVal (0:+0) ttE
+                   alpha3 = AlphaVal (1:+0) ffE
+                   e1 = Combination alpha1 alpha2
+                   e2 = Combination alpha2 alpha3
+                   notE = Clauses [(ff,e1),(tt,e2)]
+                   check = Omega notE ttTerm
+                   check2 = Omega notE ffTerm
+              in show (applicativeContext check) ++ "\n"
+                    ++ show (applicativeContext check2)
+
 main = do
-        putStr ("tests: if | map | had | mapAcc | cnot --Input quit to stop.\n ")
+        putStr ("tests: if | map | had | mapAcc | cnot | terms --Input quit to stop.\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -192,7 +265,8 @@ main = do
           "map" -> putStr testMap
           "mapAcc" -> putStr testMapAcc
           "cnot" -> putStr testCnot
-
+          "terms" -> putStr testTerms
+          "a" -> putStr testNotEval
           "quit" -> exitSuccess
           otherwise -> putStr "That function is not defined"
         putStr "\n\n\n"

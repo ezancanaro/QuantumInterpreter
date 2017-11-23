@@ -35,6 +35,7 @@ data V =  EmptyV
         | InjL V
         | InjR V
         | PairV V V
+        | Evalue E -- Temporary While I don't evaluate combinations
         deriving(Eq)
 -- data CombVals = CVal V
 --         | Combination CombVals CombVals
@@ -48,7 +49,7 @@ data E =  Val V
         | LetE P Iso P E
         | Combination E E
         | AlphaVal (Alpha Fixed) E
-        deriving(Eq,Show)
+        deriving(Eq)
 data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso
@@ -65,6 +66,7 @@ data Term = EmptyTerm
         -- EXTENSION TERMS
         | CombTerms Term Term
         | AlphaTerm (Alpha Fixed) Term
+        | ValueT V -- Using it for semantics derivation. (Represents a term that was reduced to a Value)
         deriving(Eq)
 
 data TypeErrors = VarError String String
@@ -91,6 +93,7 @@ type ODext = [E]
 --Making it easier to see the outputs
 instance Show (A) where
   show (One) = "1"
+  --show (Sum One One) = "Bool"
   show (Sum a b) = show a ++ "+" ++ show b
   show (Prod a b) = show a ++ "*" ++ show b
   show (Rec (Sum one (Prod a recA))) = "[" ++ show a ++ "]"
@@ -108,6 +111,13 @@ instance Show (V) where
   show (InjL v) = "InjL" ++ show v
   show (InjR v) = "InjR" ++ show v
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
+  show (Evalue e) = show e
+
+instance Show (E) where
+  show (Val v) = show v
+  show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ show p2 ++ "in" ++ show e
+  show (Combination v1 v2) = show v1 ++ "+" ++ show v2
+  show (AlphaVal alpha e) = show alpha ++ "|" ++ show e
 
 instance Show (P) where
   show (EmptyP) = "()"
@@ -122,12 +132,16 @@ instance Show (Term) where
   show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
   show (Omega iso t1) = show iso ++ " " ++ show t1
   show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ " in " ++ show t2
+  show (CombTerms t1 t2) = show t1 ++ " + " ++ show t2
+  show (AlphaTerm f t) = "(" ++ show f ++ ")" ++ show t
+  show (ValueT v) = "ValueT " ++ show v
 
 instance Show (Iso) where
   show (Lambda s iso) = "Lam" ++ s ++ "." ++ show iso
   show (IsoVar s) = s
   show (App iso1 iso2) = show iso1 ++ " " ++ show iso2
   show (Clauses list) = showPatterns list
+  show (Fixpoint f iso) = show "fix " ++ f ++ "." ++ show iso
 
 showPatterns :: [(V,E)] -> String
 showPatterns [] = []
@@ -235,7 +249,7 @@ extendedValueTypeCheck delta psi (AlphaVal alpha e) a = extendedValueTypeCheck d
 -- TypeChecking function for isomorphisms.
 isoTypeCheck :: Delta -> Psi -> Iso -> T -> Either TypeErrors T
 --Check that iso variable is in the context with matching type t.
-isoTypeCheck delta psi (IsoVar f) (Comp (TypeVar a) b t) = Right $ wrap $ fType f $ fInContext f psi -- Case where variable is an already typed function. Eg: Iso application f (g term), f needs to be an already declared iso.
+isoTypeCheck delta psi (IsoVar f) (Iso (TypeVar a) b) = Right $ wrap $ fType f $ fInContext f psi -- Case where variable is an already typed function. Eg: Iso application f (g term), f needs to be an already declared iso.
 isoTypeCheck delta psi (IsoVar f) t = Right $ wrap $ matchIsoTypes t (IsoVar f) $ wrap $ fType f $ fInContext f psi
 --Add isoVariable f to context with type (a<->b) and typeCheck iso with resulting context and type t
 isoTypeCheck delta psi (Lambda f iso) (Comp a b t) =  Right (Comp a b $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f (Iso a b)) iso t)
@@ -474,34 +488,164 @@ getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist
 
 
 
-------------------Semantics---didnt really understand this
+------------------Semantics---------------
 type Sigma = [(String,V)]
+
+catchMaybe :: Maybe a -> a
+catchMaybe (Just something) = something
+catchMaybe Nothing = error "Something failed"
 
 support :: Sigma -> [String]
 support [] = []
 support (vx:sigma) = fst vx : support sigma
 
-matching:: Sigma -> Term -> V -> Sigma
-matching sigma EmptyTerm EmptyV = []
-matching sigma (XTerm x) w = (x,w) : sigma
-matching sigma (InjLt v) (InjL w) = matching sigma v w
-matching sigma (InjRt v) (InjR w) = matching sigma v w
-matching sigma (PairTerm v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
-                                                     sig2 = matching sigma v2 w2
-                                                     in case (support sig1) `intersect` (support sig2) of
-                                                            [] -> sig1 `union`sig2
-                                                            otherwise -> error "Support Lists intersect"
+
+intersectionTest :: (Sigma->[String]) -> Sigma -> Sigma -> [String]
+intersectionTest f sig1 sig2 = (f sig1) `intersect` (f sig2)
+
+-- maybe sig1 . maybe sig2
+
+matching:: Sigma -> V -> V -> Maybe Sigma
+matching sigma EmptyV EmptyV = Just sigma
+matching sigma (Xval x) w = Just $ (x,w) : sigma
+matching sigma (InjL v) (InjL w) = matching sigma v w
+matching sigma (InjR v) (InjR w) = matching sigma v w
+matching sigma (PairV v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
+                                                  sig2 = matching sigma v2 w2
+                                             in case (sig1,sig2) of
+                                                  (Just sigma1,Just sigma2) -> case intersectionTest support sigma1 sigma2 of
+                                                                                    [] -> Just $ sigma1 `union`sigma2
+                                                                                    otherwise -> Nothing
+                                                  _ -> Nothing
+matching _ term val = Nothing
 
 replace::  Term -> Sigma -> V
 replace (EmptyTerm) sig= EmptyV
 replace (XTerm x) sig  = case lookup (x) sig of
-                          Nothing -> error "Did not find term"
+                          Nothing -> error "Did not find Variable" --This is wrong!
                           Just v -> v
 replace (InjLt v) sig  = InjL $ replace v sig
 replace (InjRt v) sig  = InjR $ replace v sig
 replace (PairTerm v1 v2) sig  = PairV (replace v1 sig) (replace v2 sig)
 
 
+replaceV:: V -> Sigma ->V
+replaceV (Xval x) sig = case lookup (x) sig of
+                          Nothing -> error "Did not find Variable" --This is wrong!
+                          Just v -> v
+replaceV v _ = error "should never be here"
+
+replaceInE :: E -> Sigma -> V
+replaceInE (Val v) sig = v
+replaceInE (LetE p iso p2 e) sig = EmptyV
+
+--Replace cannot evaluate the expression. How does it return a value then?? It cannot return a LetValue
+-- matchingP p1 $ evaluate iso $ replaceInP p2 sigma $ replaceInE e sig
+
+-- let v = ValueT $ applicativeContext t1
+  -- in reductionRules (Let p v t2)
+
+replaceInP :: P -> Sigma -> V
+replaceInP (EmptyP) sig = EmptyV
+replaceInP (Xprod x) sig = replace (XTerm x) sig --Check that this is actually right
+replaceInP (PairP p1 p2) sig = PairV (replaceInP p1 sig) (replaceInP p2 sig)
+
+applicativeContext :: Term -> V
+applicativeContext EmptyTerm = EmptyV
+applicativeContext (XTerm x) = Xval x
+applicativeContext (InjLt t) = InjL $ applicativeContext t
+applicativeContext (InjRt t) = InjR $ applicativeContext t
+applicativeContext (PairTerm t1 t2) = PairV (applicativeContext t1) $ applicativeContext t2
+applicativeContext (Omega iso t) = reductionRules $ Omega iso $ ValueT $ applicativeContext t
+                                    --Reduce t to a value and apply it to iso
+applicativeContext (Let p t1 t2) = let v = ValueT $ applicativeContext t1
+                                      in reductionRules (Let p v t2)
+applicativeContext (ValueT v) = v
+
+reductionRules :: Term -> V
+reductionRules (Let p (ValueT v1) t2) = replace t2 $ catchMaybe $ matching  [] (productVal p) v1
+reductionRules (Omega (Clauses isoDefs) (ValueT v)) = let match = matchClauses isoDefs v 0 -- NOT COMPLETED YET
+                                                          i = snd match
+                                                          term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
+                                                                    snd $ isoDefs !! i
+                                                          in reduceE (fst match) term
+                                      --Iso application: In case iso1 is a lambda, substitute the free-vars for iso2 and then apply term to it
+reductionRules (Omega (App i1 i2) t) = reductionRules (Omega (isoReducing (App i1 i2)) t)
+
+reduceE :: Sigma -> E -> V
+reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
+                                        v' = applicativeContext (Omega iso (ValueT v))
+                                        sig2 = catchMaybe $ matching sigma (productVal p) v'
+                                  in reduceE sig2 e
+reduceE sigma (Val v) = replaceV v sigma
+reduceE sigma (Combination e1 e2) = Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
+reduceE sigma e = Evalue e
+
+isoReducing :: Iso -> Iso
+isoReducing (App (Lambda f omega) (App omega2 omega3)) = case substitution f omega2 omega of
+                                                            Nothing -> omega
+                                                            Just subs -> isoReducing (App subs omega3)
+isoReducing (App (Lambda f omega) omega2) = case substitution f omega2 omega of
+                                                Nothing -> omega --Should never happen?
+                                                Just subs -> subs
+
+substitution :: String -> Iso ->Iso -> Maybe Iso
+substitution f omega2 (IsoVar f') = if f' == f then Just omega2
+                                    else Nothing
+substitution f omega2 (Lambda g iso) = Just $ Lambda g $ testSubs iso $ substitution f omega2 iso --Need to check if f is freeVariable?
+
+substitution f omega2 (App iso1 iso2) = Just $ App (testSubs iso1 $ substitution f omega2 iso1)
+                                                    (testSubs iso2 $ substitution f omega2 iso2)
+substitution f omega2 (Clauses listVe) = Just $ Clauses $ substitutionInClauses listVe f omega2
+                                        -- The code for substituion on Apps is equivalent to this:
+                                        -- let subs1 = substitution f omega2 iso1
+                                        --     subs2 = substitution f omega2 iso2
+                                        -- in case subs1 of
+                                        --     Nothing -> case subs2 of
+                                        --                   Nothing -> Just $ App iso1 iso2
+                                        --                   Just s2 -> Just $ App iso1 s2
+                                        --     Just s1 -> case subs2 of
+                                        --                   Nothing -> Just $ App s1 iso2
+                                        --                   Just s2 -> Just $ App s1 s2
+substitution f omega2 iso = debug ("om2: " ++ show omega2 ++ "is: " ++ show iso)
+                              Nothing
+
+--Goes through the clauses, substituting isos found in LetExpressions. Returns the substituted clauseList
+substitutionInClauses :: [(V,E)] -> String -> Iso -> [(V,E)]
+substitutionInClauses [] _ _ = []
+substitutionInClauses (e:listE) f omega2 = (fst e, subIsoInLet (snd e) f omega2)
+                                              : substitutionInClauses listE f omega2
+--Substitutes isos in letExpressions if applicable, otherwise return the expression itself
+subIsoInLet :: E -> String -> Iso -> E
+subIsoInLet (LetE p iso p2 e) f omega2 = LetE p (testSubs iso $ substitution f omega2 iso) p2 $ subIsoInLet e f omega2
+subIsoInLet (Combination e1 e2) f omega2 = Combination (subIsoInLet e1 f omega2) (subIsoInLet e2 f omega2)
+subIsoInLet (AlphaVal alpha e) f omega2 = AlphaVal alpha $ subIsoInLet e f omega2
+subIsoInLet e _ _= e
+
+--Checks if substitution has ocurred in an iso. If so, return the resulting substitution.
+--If it hasn's, return the original iso
+testSubs :: Iso -> Maybe Iso -> Iso
+testSubs iso Nothing = iso
+testSubs iso (Just s) = s
+
+matchClauses :: [(V,E)] -> V -> Int-> (Sigma,Int)
+matchClauses [] v i = ([],i)
+matchClauses (ve:list) v i = let sig =  matching [] (fst ve) v
+                              in case sig of
+                                    Just sigma -> debug("matched: " ++ show v ++ "sig:" ++ show sig)
+                                                      (sigma,i)
+                                    Nothing    -> debug("Can't match pattern: " ++ show (fst ve) ++ " with value:" ++ show v)
+                                                      matchClauses list v $ i+1
+
+
+
+productVal :: P -> V
+productVal (EmptyP) = EmptyV
+productVal (Xprod s) = Xval s
+productVal (PairP p1 p2) = PairV (productVal p1) $ productVal p2
+
+isVal:: Term -> Bool
+isVal _ = True
 -- reduction:: Term -> V
 -- reduction (Let (PairP p1 p2) v1 t2) = replace t2 $ semantics [] p v1 --LetE
 
