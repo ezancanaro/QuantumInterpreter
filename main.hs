@@ -268,6 +268,6 @@ main = do
           "terms" -> putStr testTerms
           "a" -> putStr testNotEval
           "quit" -> exitSuccess
-          otherwise -> putStr "That function is not defined"
+          otherwise -> putStr "That function is not defined!!"
         putStr "\n\n\n"
         main
