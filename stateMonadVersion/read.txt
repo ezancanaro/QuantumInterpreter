@@ -1,0 +1,2 @@
+An incomplete version used as a learning tool formessing around with the state monad . Nice way of comparing syntax 
+differences between monads and functions with threaded parameters.

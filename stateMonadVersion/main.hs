@@ -1,12 +1,15 @@
 module Main where
 
-import Quantum
+import MonadicInt
 import Data.Complex
 import Numeric.Fixed
 import Control.Monad
 import System.Exit
 
 
+
+showTypeChecking :: (Show s) => (Show a) => (Show b) => (s,(a,b)) -> String
+showTypeChecking (s,(d,i)) = " State: " ++ show d ++ "\n\t" ++ show i ++ "\n\n\tType: " ++ show s
 
 hadIso :: Iso
 hadIso = let  tt = InjL EmptyV
@@ -61,9 +64,9 @@ test1 = let x = Xval "x"
             had = hadIso
             term = (PairTerm (InjLt EmptyTerm) (InjLt EmptyTerm))
             check = Omega (App lambdaG (App had had)) term
-            in ("If Type:" ++ show (typeCheck delta psi lambdaG isoType) )
-              ++ "\nTestig if, with g,h being Had\n" ++ show lambdaG ++ "\n" ++  show term ++".\nEvals to:\n\t" ++ show (applicativeContext check)
-                ++ "\n\nInverted if: " ++ show (invertIso lambdaG)
+            in ("If:\n" ++ showTypeChecking (typeCheck delta psi lambdaG isoType) )
+        --      ++ "\nTestig if, with g,h being Had\n" ++ show lambdaG ++ "\n" ++  show term ++".\nEvals to:\n\t" ++ show (applicativeContext check)
+            --    ++ "\n\nInverted if: " ++ show (invertIso lambdaG)
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
 testMap :: String
@@ -95,7 +98,7 @@ testMap =
       psi = []
       had = hadIso
       check = Omega (App lamG had) (InjLt EmptyTerm)
-      in ("Map Type: " ++ show (typeCheck delta psi lamG isoType))
+      in ("Map:\n" ++ showTypeChecking (typeCheck delta psi lamG isoType))
       --  ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
 
 testHad :: String
@@ -115,8 +118,8 @@ testHad = let tt = InjL EmptyV
               delta = []
               psi = []
               check = Omega had (InjLt EmptyTerm)
-              in ("Had Type:" ++ show (typeCheck delta psi had isoType) )
-                ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
+              in ("Had:\n" ++ showTypeChecking (typeCheck delta psi had isoType) )
+          --      ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
 
 testMapAcc :: String
 testMapAcc =  let a = TypeVar 'a'
@@ -169,7 +172,7 @@ testMapAcc =  let a = TypeVar 'a'
                   isoType = Comp aXb aXc funType
                   delta = [("x",a),("h",b),("t",recursiveB)]
                   psi = []
-                  in ("MapAcc Type: " ++ show (typeCheck delta psi lamG isoType))
+                  in ("MapAcc:\n" ++ showTypeChecking (typeCheck delta psi lamG isoType))
 
 testCnot :: String
 testCnot = let  bool = Sum One One
@@ -214,7 +217,7 @@ testCnot = let  bool = Sum One One
                 delta = [("tb",bool),("cbs",recBool)]
                 psi = [("not",Iso bool bool)]
 
-                in ("Cnot Type: " ++ show (typeCheck delta psi cnot isoType))
+                in ("Cnot:\n" ++ showTypeChecking (typeCheck delta psi cnot isoType))
 
 testTerms :: String
 testTerms = let  bool = Sum One One
@@ -235,9 +238,10 @@ testTerms = let  bool = Sum One One
                  delta = [("y",bool)]
                  delta2 = [("y",bool),("x",bool)]
                  psi = [("exampleIso",isoType)]
-                 in  (show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
-                        ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
-                          ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
+                 in  "s"
+                  --(show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
+            --            ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
+          --                ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
 
 testNotEval :: String
 testNotEval = let  bool = Sum One One
@@ -255,8 +259,9 @@ testNotEval = let  bool = Sum One One
                    notE = Clauses [(ff,e1),(tt,e2)]
                    check = Omega notE ttTerm
                    check2 = Omega notE ffTerm
-              in show (applicativeContext check) ++ "\n"
-                    ++ show (applicativeContext check2)
+              in "s"
+                --show (applicativeContext check) ++ "\n"
+                  --  ++ show (applicativeContext check2)
 
 main = do
         putStr ("tests: if | map | had | mapAcc | cnot | terms --Input quit to stop.\n ")

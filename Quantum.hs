@@ -8,7 +8,7 @@ import Numeric.Fixed
 -- import Linear.Matrix -- Needs installing via Cabal
 
 --Debugging flag-
-doDebug = True
+doDebug = False
 --Making debug statements easier to use
 debug a b = if doDebug then Debug.Trace.trace a b else b
 --Remember to remove debugging statements after checks
@@ -115,9 +115,10 @@ instance Show (V) where
 
 instance Show (E) where
   show (Val v) = show v
-  show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ show p2 ++ "in" ++ show e
+  show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
   show (Combination v1 v2) = show v1 ++ "+" ++ show v2
-  show (AlphaVal alpha e) = show alpha ++ "|" ++ show e
+  show (AlphaVal alpha e) = show (alpha) ++ "~" ++ show e
+
 
 instance Show (P) where
   show (EmptyP) = "()"
@@ -131,17 +132,17 @@ instance Show (Term) where
   show (InjRt t) = "InjR" ++ show t
   show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
   show (Omega iso t1) = show iso ++ " " ++ show t1
-  show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ " in " ++ show t2
+  show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ "\n\t\tin " ++ show t2
   show (CombTerms t1 t2) = show t1 ++ " + " ++ show t2
   show (AlphaTerm f t) = "(" ++ show f ++ ")" ++ show t
   show (ValueT v) = "ValueT " ++ show v
 
 instance Show (Iso) where
-  show (Lambda s iso) = "Lam" ++ s ++ "." ++ show iso
+  show (Lambda s iso) = "Lam  " ++ s ++ ". " ++ show iso
   show (IsoVar s) = s
   show (App iso1 iso2) = show iso1 ++ " " ++ show iso2
-  show (Clauses list) = showPatterns list
-  show (Fixpoint f iso) = show "fix " ++ f ++ "." ++ show iso
+  show (Clauses list) = "\n{\n" ++ showPatterns list ++ "}"
+  show (Fixpoint f iso) = show "Fix " ++ f ++ ". " ++ show iso
 
 showPatterns :: [(V,E)] -> String
 showPatterns [] = []
@@ -533,7 +534,8 @@ replaceV:: V -> Sigma ->V
 replaceV (Xval x) sig = case lookup (x) sig of
                           Nothing -> error "Did not find Variable" --This is wrong!
                           Just v -> v
-replaceV v _ = error "should never be here"
+replaceV (PairV v1 v2) sig = PairV (replaceV v1 sig) (replaceV v2 sig)
+replaceV v _ = v
 
 replaceInE :: E -> Sigma -> V
 replaceInE (Val v) sig = v
@@ -568,26 +570,53 @@ reductionRules (Omega (Clauses isoDefs) (ValueT v)) = let match = matchClauses i
                                                           i = snd match
                                                           term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
                                                                     snd $ isoDefs !! i
-                                                          in reduceE (fst match) term
+                                                          in debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
+                                                              reduceE (fst match) term
                                       --Iso application: In case iso1 is a lambda, substitute the free-vars for iso2 and then apply term to it
 reductionRules (Omega (App i1 i2) t) = reductionRules (Omega (isoReducing (App i1 i2)) t)
+-- reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let match = matchClauses isoDefs v 0
+--                                                                        i = snd match
+--                                                                        term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
+--                                                                                  snd $ isoDefs !! i
+--                                                                        in debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
+--                                                                           if checkIfFixedPoint term f then reduceE (fst match) term
+--                                                                           else reductionRules (Omega (isoReducing (Fixpoint f (Clauses isoDefs))) (ValueV t))
+--                                                                                     --not correct
+
+checkIfFixedPoint :: E -> String -> Bool
+checkIfFixedPoint (Val v) _ = True
+checkIfFixedPoint (LetE p (IsoVar g) p2 e) f = if g==f then False
+                                               else checkIfFixedPoint e f
+checkIfFixedPoint (Combination e1 e2) f = (checkIfFixedPoint e1 f) && checkIfFixedPoint e2 f
+checkIfFixedPoint (AlphaVal alpha e) f = checkIfFixedPoint e f
 
 reduceE :: Sigma -> E -> V
 reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
                                         v' = applicativeContext (Omega iso (ValueT v))
                                         sig2 = catchMaybe $ matching sigma (productVal p) v'
-                                  in reduceE sig2 e
-reduceE sigma (Val v) = replaceV v sigma
-reduceE sigma (Combination e1 e2) = Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
-reduceE sigma e = Evalue e
+                                  in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
+                                      reduceE sig2 e
+reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with " ++ show sigma)
+                          replaceV v sigma
+reduceE sigma (Combination e1 e2) = debug("Combination...")
+                                     Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
+reduceE sigma (AlphaVal alpha e) = reduceE sigma e
+--reduceE sigma e = debug("No evaluation for: " ++ show e)
+--                    Evalue e
 
 isoReducing :: Iso -> Iso
 isoReducing (App (Lambda f omega) (App omega2 omega3)) = case substitution f omega2 omega of
-                                                            Nothing -> omega
-                                                            Just subs -> isoReducing (App subs omega3)
+                                                            Nothing -> debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
+                                                                        omega
+                                                            Just subs -> debug("\nSubstituted: " ++ show subs)
+                                                                          isoReducing (App subs omega3)
 isoReducing (App (Lambda f omega) omega2) = case substitution f omega2 omega of
-                                                Nothing -> omega --Should never happen?
-                                                Just subs -> subs
+                                                Nothing -> debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
+                                                            omega --Should never happen?
+                                                Just subs -> debug("\nSubstituted: " ++ show subs)
+                                                              subs
+-- isoReducing (Fixpoint f (Clauses isoDefs)) =
+
 
 substitution :: String -> Iso ->Iso -> Maybe Iso
 substitution f omega2 (IsoVar f') = if f' == f then Just omega2
@@ -662,11 +691,32 @@ isVal _ = True
 --                           sig -> Right (sig,snd ve)
 --
 
--------------------------------------- REDUCTION RULES
+-------------------------------------- Iso Inversion
+
+invertType :: T -> T
+invertType (Iso a b) = Iso b a
+invertType (Comp a b t) = Comp b a (invertType t)
+
+invertIso :: Iso -> Iso
+invertIso (IsoVar f) = IsoVar $ f ++ "'"
+invertIso (App omega1 omega2) = App (invertIso omega1) (invertIso omega1)
+invertIso (Lambda f omega) = Lambda f (invertIso omega)
+invertIso (Fixpoint f omega) = Fixpoint f (invertIso omega)
+invertIso (Clauses listVE) = Clauses $ invertClauses listVE
 
 
+invertClauses :: [(V,E)] -> [(V,E)]
+invertClauses [] = []
+invertClauses (ve:listVE) = let e' = invertExtendedValue $ snd ve
+                                v' = bottomValue $ snd ve
+                            in buildInverted ve e' v' : invertClauses listVE
 
+invertExtendedValue :: E -> E
+invertExtendedValue (LetE p1 omega p2 e) = LetE p2 (invertIso omega) p1 (invertExtendedValue e)
+invertExtendedValue e = e
 
+buildInverted :: (V,E) -> E -> V -> (V,E)
+buildInverted ve (LetE p1 omega p2 e) v' = (v', (LetE p1 omega p2 $ Val $ fst ve))
 --(.) :: (b -> c) -> (a -> b) -> a -> c
 
 -- Sums [(Alpha,V)]
