@@ -6,6 +6,15 @@ import Numeric.Fixed
 import Control.Monad
 import System.Exit
 
+x = Xval "x"
+xP = Xprod "x"
+y = Xval "y"
+tt = InjL EmptyV
+ff = InjR EmptyV
+bool = Sum One One
+trueTerm = InjLt EmptyTerm
+falseTerm = InjRt EmptyTerm
+
 
 
 hadIso :: Iso
@@ -94,9 +103,12 @@ testMap =
       delta = [("h",a),("t",recursiveA)]
       psi = []
       had = hadIso
-      check = Omega (App lamG had) (InjLt EmptyTerm)
-      in ("Map Type: " ++ show (typeCheck delta psi lamG isoType))
-      --  ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
+      littleList = InjRt $ PairTerm (falseTerm)  (InjLt EmptyTerm)
+      notSoLittleList = InjRt $ PairTerm (falseTerm) littleList
+      check = Omega (App lamG had) (littleList)
+      check2 = Omega (App lamG had) (notSoLittleList)
+      in ( "\n Has Type: " ++ show (typeCheck delta psi lamG isoType))
+        ++  "\n\nEvaluating: " ++ show check ++ "\n\n\tEvals to:\n\t\t " ++ show (applicativeContext check2)
 
 testHad :: String
 testHad = let tt = InjL EmptyV
@@ -257,6 +269,10 @@ testNotEval = let  bool = Sum One One
                    check2 = Omega notE ffTerm
               in show (applicativeContext check) ++ "\n"
                     ++ show (applicativeContext check2)
+
+
+
+
 
 main = do
         putStr ("tests: if | map | had | mapAcc | cnot | terms --Input quit to stop.\n ")

@@ -8,7 +8,8 @@ import Numeric.Fixed
 -- import Linear.Matrix -- Needs installing via Cabal
 
 --Debugging flag-
-doDebug = False
+doDebug = --False
+          True
 --Making debug statements easier to use
 debug a b = if doDebug then Debug.Trace.trace a b else b
 --Remember to remove debugging statements after checks
@@ -116,9 +117,13 @@ instance Show (V) where
 instance Show (E) where
   show (Val v) = show v
   show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
-  show (Combination v1 v2) = show v1 ++ "+" ++ show v2
-  show (AlphaVal alpha e) = show (alpha) ++ "~" ++ show e
-
+  show (Combination v1 v2)
+      | show v1 == "" = show v2
+      | show v2 == "" = show v1
+      | otherwise = show v1 ++ "+" ++ show v2
+  show (AlphaVal alpha e)
+      | alpha == 0 = ""
+      | otherwise = show (alpha) ++ "~" ++ show e
 
 instance Show (P) where
   show (EmptyP) = "()"
@@ -148,6 +153,15 @@ showPatterns :: [(V,E)] -> String
 showPatterns [] = []
 showPatterns (p1:patterns) = show (fst p1) ++ "<-->" ++ show (snd p1) ++ "\n" ++ showPatterns patterns
 
+
+
+
+
+listsFromPairs :: [(a,b)] -> ([a],[b])
+listsFromPairs listAB = (fmap fst listAB, fmap snd listAB)
+
+
+
 -----------------------------------------------------------------------------------------------------------------
 --              TypeChecker       -- Could probably be implemented with the use of a Reader monad
                                   -- for carrying the contexts around. Should look into it.
@@ -161,7 +175,7 @@ showPatterns (p1:patterns) = show (fst p1) ++ "<-->" ++ show (snd p1) ++ "\n" ++
 -- (PairV v1 v) @@ (PairV v2 v') = v1 @@ v2 ??
 
 --Function used to wrap evaluations of functions tha may raise a typing error.
---We use to avoid creating multiple conditionals on the function definitions. Needs a better name!!!
+--Used to avoid creating multiple conditionals on the function definitions. Needs a better name!!!
 wrap :: Show b => Either b a -> a
 wrap (Left err) = error (show err)
 wrap (Right val) = val
@@ -488,8 +502,9 @@ getLinearTerms [] = []
 getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist
 
 
-
+-----------------------------------------------------------------------------------------------------------------------------
 ------------------Semantics---------------
+-----------------------------------------------------------------------------------------------------------------------------
 type Sigma = [(String,V)]
 
 catchMaybe :: Maybe a -> a
@@ -520,37 +535,7 @@ matching sigma (PairV v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
                                                   _ -> Nothing
 matching _ term val = Nothing
 
-replace::  Term -> Sigma -> V
-replace (EmptyTerm) sig= EmptyV
-replace (XTerm x) sig  = case lookup (x) sig of
-                          Nothing -> error "Did not find Variable" --This is wrong!
-                          Just v -> v
-replace (InjLt v) sig  = InjL $ replace v sig
-replace (InjRt v) sig  = InjR $ replace v sig
-replace (PairTerm v1 v2) sig  = PairV (replace v1 sig) (replace v2 sig)
 
-
-replaceV:: V -> Sigma ->V
-replaceV (Xval x) sig = case lookup (x) sig of
-                          Nothing -> error "Did not find Variable" --This is wrong!
-                          Just v -> v
-replaceV (PairV v1 v2) sig = PairV (replaceV v1 sig) (replaceV v2 sig)
-replaceV v _ = v
-
-replaceInE :: E -> Sigma -> V
-replaceInE (Val v) sig = v
-replaceInE (LetE p iso p2 e) sig = EmptyV
-
---Replace cannot evaluate the expression. How does it return a value then?? It cannot return a LetValue
--- matchingP p1 $ evaluate iso $ replaceInP p2 sigma $ replaceInE e sig
-
--- let v = ValueT $ applicativeContext t1
-  -- in reductionRules (Let p v t2)
-
-replaceInP :: P -> Sigma -> V
-replaceInP (EmptyP) sig = EmptyV
-replaceInP (Xprod x) sig = replace (XTerm x) sig --Check that this is actually right
-replaceInP (PairP p1 p2) sig = PairV (replaceInP p1 sig) (replaceInP p2 sig)
 
 applicativeContext :: Term -> V
 applicativeContext EmptyTerm = EmptyV
@@ -574,7 +559,10 @@ reductionRules (Omega (Clauses isoDefs) (ValueT v)) = let match = matchClauses i
                                                               reduceE (fst match) term
                                       --Iso application: In case iso1 is a lambda, substitute the free-vars for iso2 and then apply term to it
 reductionRules (Omega (App i1 i2) t) = reductionRules (Omega (isoReducing (App i1 i2)) t)
--- reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let match = matchClauses isoDefs v 0
+reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let unfoldedRecursion = debug ("My Val: " ++ show v)
+                                                                                              buildLamFromFix f v (Clauses isoDefs)
+                                                                       in reductionRules (Omega unfoldedRecursion (ValueT v))
+
 --                                                                        i = snd match
 --                                                                        term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
 --                                                                                  snd $ isoDefs !! i
@@ -583,12 +571,150 @@ reductionRules (Omega (App i1 i2) t) = reductionRules (Omega (isoReducing (App i
 --                                                                           else reductionRules (Omega (isoReducing (Fixpoint f (Clauses isoDefs))) (ValueV t))
 --                                                                                     --not correct
 
-checkIfFixedPoint :: E -> String -> Bool
-checkIfFixedPoint (Val v) _ = True
-checkIfFixedPoint (LetE p (IsoVar g) p2 e) f = if g==f then False
-                                               else checkIfFixedPoint e f
-checkIfFixedPoint (Combination e1 e2) f = (checkIfFixedPoint e1 f) && checkIfFixedPoint e2 f
-checkIfFixedPoint (AlphaVal alpha e) f = checkIfFixedPoint e f
+buildLamFromFix :: String -> V -> Iso -> Iso
+buildLamFromFix f v fix = let listLams = findFixedPoint f 0 v fix
+                              fix' = renameInFixedPoint f 0 fix
+                              fixedNameIsoPairs = findFixedPoint f 0 v fix
+                              (names,isos) = listsFromPairs fixedNameIsoPairs
+                              lambdaChain = lambdaBuilding names fix'
+                              appChain = debug ("Lams: " ++ show lambdaChain ++ "\n------------\n")
+                                            appBuilding (reverse isos) lambdaChain
+                              in debug ("::: " ++ show appChain ++ "\n------------\n")
+                                   appChain
+
+lambdaBuilding :: [String] -> Iso -> Iso
+lambdaBuilding [] fix = fix
+lambdaBuilding (f:names) fix = Lambda f (lambdaBuilding names fix)
+
+appBuilding :: [Iso] -> Iso -> Iso
+appBuilding [] lambdaChain = lambdaChain
+appBuilding (iso:isos) lambdaChain = App (appBuilding isos lambdaChain) iso
+
+
+findFixedPoint :: String -> Int -> V -> Iso -> [(String,Iso)]
+--CaseS of empty list
+findFixedPoint f i (InjL EmptyV) fix = let fix' = renameInFixedPoint f (i+1) fix
+                                           pairNameIso = ((f ++ show i), renameIsoVars i fix')
+                                           in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+                                                [pairNameIso] -- error ("EmptyV")
+findFixedPoint f i (PairV list _) fix = let fix' = renameInFixedPoint f (i+1) fix
+                                            pairNameIso = ((f ++ show i), renameIsoVars i fix')
+                                            in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+                                                [pairNameIso] -- error ("PAIRV")
+--Case of a list with elements -- Need to keep unfolding the iso.
+findFixedPoint f i (InjR (PairV h t)) fix = let fix' = renameInFixedPoint f (i+1) fix
+                                                pairNameIso = ((f ++ show i), renameIsoVars i fix')
+                                                in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+                                                    pairNameIso : findFixedPoint f (i+1) t fix
+
+
+renameInFixedPoint :: String -> Int -> Iso ->Iso
+renameInFixedPoint f i (Clauses listVE) = let elist = fmap snd listVE
+                                              vlist = fmap fst listVE
+                                              in Clauses $ makePairs vlist $ renameFixInE f i elist
+renameInFixedPoint _ _ iso = error ("Renaming: " ++ show iso)
+
+
+renameFixInE :: String -> Int -> [E] -> [E]
+renameFixInE _ _ [] = []
+renameFixInE f i (e:elist) = rename f i e : renameFixInE f i elist
+
+rename :: String -> Int -> E -> E
+rename f i (LetE p1 (IsoVar f') p2 e)
+  | f' == f = LetE p1 (IsoVar (f ++ show i)) p2 (rename f i e)
+  | otherwise = LetE p1 (IsoVar f') p2 (rename f i e)
+rename f i (LetE p1 iso p2 e) = LetE p1 (renameInFixedPoint f i iso) p2 (rename f i e)
+rename f i (Combination e1 e2) = Combination (rename f i e1) (rename f i e2)
+rename f i e = e
+
+
+makePairs :: [V] -> [E] -> [(V,E)]
+makePairs (v:vlist) (e:elist) = (v,e) : makePairs vlist elist
+makePairs [] [] = []
+makePairs _ _ = error "Trying to pair different numbers of V and E"
+  --Clauses (listV , renameF f i (map $ snd listE))
+
+renameIsoVars :: Int -> Iso -> Iso
+renameIsoVars i (Clauses listVE) = let (vlist,elist) = listsFromPairs listVE
+                                       --elist = fmap snd listVE
+                                       --vlist = fmap fst listVE
+                                       in Clauses $ makePairs (renameVars i vlist) $ renameVarsE i elist
+
+
+renameVars :: Int -> [V] -> [V]
+renameVars _ [] = []
+renameVars i vlist = map (renameVar i) vlist
+
+renameVar :: Int -> V -> V
+renameVar i (Xval var) = Xval (var ++ show i)
+renameVar i (InjL v) = InjL $ renameVar i v
+renameVar i (InjR v) = InjR $ renameVar i v
+renameVar i (PairV v1 v2) = PairV (renameVar i v1) (renameVar i v2)
+renameVar _ v = v
+
+renameVarsE :: Int -> [E] -> [E]
+renameVarsE _ [] = []
+renameVarsE i elist = map (renameVarE i) elist
+
+renameVarE :: Int -> E -> E
+renameVarE i (Val v) = Val $ renameVar i v
+renameVarE i (LetE p1 iso p2 e) = LetE (renameVarP i p1) iso (renameVarP i p2) (renameVarE i e)
+renameVarE i (Combination e1 e2) = Combination (renameVarE i e1) (renameVarE i e2)
+renameVarE i (AlphaVal alpha e) = AlphaVal alpha (renameVarE i e)
+
+renameVarP :: Int -> P -> P
+renameVarP i (Xprod var) = Xprod (var ++ show i)
+renameVarP i (PairP p1 p2) = PairP (renameVarP i p1)  (renameVarP i p2)
+renameVarP _ p = p
+--
+--
+
+--
+
+--
+--
+-- checkIfFixedPoint :: E -> String -> Bool
+-- checkIfFixedPoint (Val v) _ = True
+-- checkIfFixedPoint (LetE p (IsoVar g) p2 e) f = if g==f then False
+--                                                else checkIfFixedPoint e f
+-- checkIfFixedPoint (Combination e1 e2) f = (checkIfFixedPoint e1 f) && checkIfFixedPoint e2 f
+-- checkIfFixedPoint (AlphaVal alpha e) f = checkIfFixedPoint e f
+replace::  Term -> Sigma -> V
+replace (EmptyTerm) sig= EmptyV
+replace (XTerm x) sig  = case lookup (x) sig of
+                          Nothing -> error "Did not find Variable" --This is wrong!
+                          Just v -> v
+replace (InjLt v) sig  = InjL $ replace v sig
+replace (InjRt v) sig  = InjR $ replace v sig
+replace (PairTerm v1 v2) sig  = PairV (replace v1 sig) (replace v2 sig)
+
+
+replaceV:: V -> Sigma ->V
+replaceV (Xval x) sig = case lookup (x) sig of
+                          Nothing -> error "Did not find Variable" --This is wrong!
+                          Just v -> debug ("Value: " ++ show v ++ "\n------------\n")
+                                      v
+replaceV (PairV v1 v2) sig = PairV (replaceV v1 sig) (replaceV v2 sig)
+replaceV (InjR v) sig = InjR $ replaceV v sig
+replaceV (InjL v) sig = InjL $ replaceV v sig
+replaceV v _ = v -- Values that don't need substitution (EmptyV)
+
+
+replaceInE :: E -> Sigma -> V
+replaceInE (Val v) sig = v
+replaceInE (LetE p iso p2 e) sig = EmptyV
+
+--Replace cannot evaluate the expression. How does it return a value then?? It cannot return a LetValue
+-- matchingP p1 $ evaluate iso $ replaceInP p2 sigma $ replaceInE e sig
+
+-- let v = ValueT $ applicativeContext t1
+  -- in reductionRules (Let p v t2)
+
+replaceInP :: P -> Sigma -> V
+replaceInP (EmptyP) sig = EmptyV
+replaceInP (Xprod x) sig = replace (XTerm x) sig --Check that this is actually right
+replaceInP (PairP p1 p2) sig = PairV (replaceInP p1 sig) (replaceInP p2 sig)
+
 
 reduceE :: Sigma -> E -> V
 reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
@@ -596,11 +722,11 @@ reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
                                         sig2 = catchMaybe $ matching sigma (productVal p) v'
                                   in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
                                       reduceE sig2 e
-reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with " ++ show sigma)
+reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with context: " ++ show sigma)
                           replaceV v sigma
 reduceE sigma (Combination e1 e2) = debug("Combination...")
                                      Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
-reduceE sigma (AlphaVal alpha e) = reduceE sigma e
+reduceE sigma (AlphaVal alpha e) = Evalue $ AlphaVal alpha $ Val $ reduceE sigma e
 --reduceE sigma e = debug("No evaluation for: " ++ show e)
 --                    Evalue e
 
@@ -615,7 +741,8 @@ isoReducing (App (Lambda f omega) omega2) = case substitution f omega2 omega of
                                                             omega --Should never happen?
                                                 Just subs -> debug("\nSubstituted: " ++ show subs)
                                                               subs
--- isoReducing (Fixpoint f (Clauses isoDefs)) =
+isoReducing (App (App iso1 iso2) iso3) = isoReducing (App (isoReducing (App iso1 iso2)) iso3)
+isoReducing iso = error $ "Cannot reduce: " ++ show iso
 
 
 substitution :: String -> Iso ->Iso -> Maybe Iso
@@ -636,8 +763,9 @@ substitution f omega2 (Clauses listVe) = Just $ Clauses $ substitutionInClauses 
                                         --     Just s1 -> case subs2 of
                                         --                   Nothing -> Just $ App s1 iso2
                                         --                   Just s2 -> Just $ App s1 s2
-substitution f omega2 iso = debug ("om2: " ++ show omega2 ++ "is: " ++ show iso)
-                              Nothing
+substitution f omega2 (Fixpoint g iso) = Just $ Fixpoint g $ testSubs iso $ substitution f omega2 iso
+--substitution f omega2 iso = debug ("om2: " ++ show omega2 ++ "is: " ++ show iso)
+  --                            Nothing
 
 --Goes through the clauses, substituting isos found in LetExpressions. Returns the substituted clauseList
 substitutionInClauses :: [(V,E)] -> String -> Iso -> [(V,E)]
