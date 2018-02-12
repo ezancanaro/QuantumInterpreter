@@ -1,6 +1,9 @@
 module Main where
-
 import Quantum
+import AbstractData
+import Utils
+import Semantics
+
 import Data.Complex
 import Numeric.Fixed
 import Control.Monad
