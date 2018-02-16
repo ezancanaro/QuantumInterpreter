@@ -174,7 +174,7 @@ xType Nothing = Left $ VarError "Variable not in context" ""
 
 --Lookup variable x in the supplied context. If variable is found, returns Just A, otherwise returns Nothing
 xInContext :: String -> Delta -> Maybe A
-xInContext x delta = lookup x delta -- Lookup a -> [(a,b)] -> Maybe b
+xInContext x delta = lookup x delta -- Lookup :: a -> [(a,b)] -> Maybe b
                                     -- Returns b if it finds a pair based on provided key a
 
 --Retrieve type of iso named f from IsoContext psi
@@ -237,7 +237,7 @@ matchIsoTypes supplied iso found
         | supplied == found = Right supplied
         | otherwise = Left $ VarError "IsoVariable type doesnt match supplied T " (show iso ++ ":" ++ show found ++ "not " ++ show supplied)
 
---Check if product and type provided are conductive to pairs. If so, extend the context
+--Check if product and type provided are pairs. If so, extend the context
 -- Otherwise return a typing error.
 addToContext :: Delta-> P -> A -> Either TypeErrors Delta
 addToContext delta (PairP (Xprod x) (Xprod y)) (Prod a b) = Right $ delta ++ [(x,a),(y,b)]
@@ -404,9 +404,13 @@ mytermTypeCheck (PairTerm t1 t2) (Prod a b) = do
                                                 st2 <- mytermTypeCheck t2 b
                                                 return $ Right $ Prod (wrap st1) $ wrap st2
 -- --Typecheck the iso f, match t with the first part of resulting type ("input"). If they match, return type b
--- mytermTypeCheck delta psi (Omega f t) b = let isoInputType = wrap $ checkIsoReturnType b $ wrap $ isoTypeCheck delta psi f (Iso (TypeVar 'a') b)
---                                           in if (wrap $ mytermTypeCheck delta psi t isoInputType) == isoInputType then Right b
---                                             else Left $ OmegaError "Omega input of the wrong type" (Omega f t)
+mytermTypeCheck (Omega f t) b = do
+                                  st1 <- isoTypeCheck f (Iso (TypeVar 'a') b)
+                                  let isoInputType = wrap $ checkIsoReturnType b $ wrap $ st1
+                                    in do
+                                          st2 <- mytermTypeCheck t isoInputType
+                                          if (wrap st2 == isoInputType) then return $ Right b
+                                            else return $ Left $ OmegaError "Omega input of the wrong type" (Omega f t)
 -- --Typecheck t1 and use resulting type to add variables from p to the context. Using the new context, typecheck t2 with type c.
 mytermTypeCheck (Let p t1 t2) c = do
                                      st1 <- mytermTypeCheck t1 c
