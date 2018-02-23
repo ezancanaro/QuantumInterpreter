@@ -81,7 +81,7 @@ type Psi = [(String,T)]
 type OD = [V]
 type ODext = [E]
 
---Making it easier to see the outputs
+--Not-so-pretty printing.
 instance Show (A) where
   show (One) = "1"
   --show (Sum One One) = "Bool"

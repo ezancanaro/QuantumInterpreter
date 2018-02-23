@@ -408,8 +408,8 @@ mytermTypeCheck (Omega f t) b = do
                                   st1 <- isoTypeCheck f (Iso (TypeVar 'a') b)
                                   let isoInputType = wrap $ checkIsoReturnType b $ wrap $ st1
                                     in do
-                                          st2 <- mytermTypeCheck t isoInputType
-                                          if (wrap st2 == isoInputType) then return $ Right b
+                                         st2 <- mytermTypeCheck t isoInputType
+                                         if (wrap st2 == isoInputType) then return $ Right b
                                             else return $ Left $ OmegaError "Omega input of the wrong type" (Omega f t)
 -- --Typecheck t1 and use resulting type to add variables from p to the context. Using the new context, typecheck t2 with type c.
 mytermTypeCheck (Let p t1 t2) c = do
