@@ -125,7 +125,6 @@ instance Show (Term) where
   show (EmptyTerm) = "()"
   show (XTerm s) = s
   show (InjLt t) = "InjL" ++ show t
-  show (InjRt (PairTerm t1 t2)) = "InjRt" ++ show t1 ++ ",\n" ++ show t2
   show (InjRt t) = "InjR" ++ show t
   show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
   show (Omega iso t1) = show iso ++ " " ++ show t1

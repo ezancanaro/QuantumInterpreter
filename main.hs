@@ -32,10 +32,12 @@ testMap =
       (had,_) = hadIso
       littleList = InjRt $ PairTerm (falseTerm)  (InjLt EmptyTerm)
       notSoLittleList = InjRt $ PairTerm (falseTerm) littleList
+      list3 = boolLists [True,True,False,False]
       check = Omega (App map' had) (littleList)
       check2 = Omega (App map' had) (notSoLittleList)
+      check3 = Omega (App map' had) list3
       in ( "\n Has Type: " ++ show (typeCheck delta psi map' isoType))
-        ++  "\n\nEvaluating: " ++ show check ++ "\n\n\tEvals to:\n\t\t " ++ show (applicativeContext check2)
+        ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show (applicativeContext check3)
 
 testHad :: String
 testHad = let (had,isoType) = hadIso
@@ -47,7 +49,7 @@ testHad = let (had,isoType) = hadIso
 
 testMapAcc :: String
 testMapAcc =  let (mapAcc,isoType) = mapAccIso
-                  delta = [("x",a),("h",b),("t",recursiveB)]
+                  delta = [("x'",a),("h1",b),("t1",recursiveB)]
                   psi = []
                   in ("MapAcc Type: " ++ show (typeCheck delta psi mapAcc isoType))
 

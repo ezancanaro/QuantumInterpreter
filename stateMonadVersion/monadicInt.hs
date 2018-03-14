@@ -1,4 +1,8 @@
 module MonadicInt where
+import AbstractData
+import Utils
+
+
 import Data.Complex
 import Data.List
 import Data.Matrix -- Needs installing via Cabal
@@ -6,157 +10,8 @@ import Debug.Trace
 import Numeric.Fixed
 import Control.Monad.State
 
---Debugging flag-
-doDebug = True
---Making debug statements easier to use
-debug a b = if doDebug then Debug.Trace.trace a b else b
---Remember to remove debugging statements after checks
-
-data A =  One -- 1
-        | Sum A B -- a + b
-        | Prod A B -- a * b
-        | Rec A  -- [a] == 1 + (a * [a]) --Sum One (Prod A (Rec A))
-                -- listX == ()|<x,listX> --[] or (x:listX)
-                --[] = InjL ();; x:listX = InjR <x,listX>
-                -- How to specify the recursive type on Haskell?
-                -- Need to make it so [Injl() : Rec a] is valid for the typeChecker
-        | TypeVar Char --Allows usage of wildcards on typing rules (Ex: when applying iso to Term, supplied type is only the "output")
-        deriving(Eq)
-type B = A
--- recA = Sum One (List a))
-
-
-data T = Iso A B -- a<-->b
-        | Comp A B T -- (a<-->b)-->T
-        deriving(Eq)
-data V =  EmptyV
-        | Xval String
-        | InjL V
-        | InjR V
-        | PairV V V
-        | Evalue E -- Temporary While I don't evaluate combinations
-        deriving(Eq)
--- data CombVals = CVal V
---         | Combination CombVals CombVals
---         | AlphaVal (Alpha Double) CombVals
---         deriving(Eq,Show)
-data P =  EmptyP
-        | Xprod String --Equivale ao par <(),x>
-        | PairP P P
-        deriving(Eq)
-data E =  Val V
-        | LetE P Iso P E
-        | Combination E E
-        | AlphaVal (Alpha Fixed) E
-        deriving(Eq)
-data Iso = Lambda String Iso
-        | IsoVar String
-        | App Iso Iso
-        | Clauses [(V,E)] --(V,CombVals?)
-        | Fixpoint String Iso
-        deriving(Eq)
-data Term = EmptyTerm
-        | XTerm String
-        | InjLt Term
-        | InjRt Term
-        | PairTerm Term Term
-        | Omega Iso Term
-        | Let P Term Term
-        -- EXTENSION TERMS
-        | CombTerms Term Term
-        | AlphaTerm (Alpha Fixed) Term
-        | ValueT V -- Using it for semantics derivation. (Represents a term that was reduced to a Value)
-        deriving(Eq)
-
-data TypeErrors = VarError String String
-        | SumError String String
-        | ProdError String P
-        | IsoError String String String
-        | OmegaError String Term
-        | AppError String Iso Iso
-        | ValueError String V A
-        | OrthogonalDecomp String [V]
-        | CustomError String String
-        | FixpointError String String
-        deriving(Show,Eq)
-
-type Alpha = Complex
-
---data E = Let P Phi P E
-
-type Delta = [(String,A)] -- Term Typing Context
-type Psi = [(String,T)] -- Iso Typing Context
-type OD = [V]
-type ODext = [E]
-
---Making it easier to see the outputs
-instance Show (A) where
-  show (One) = "1"
-  --show (Sum One One) = "Bool"
-  show (Sum a b) = show a ++ "+" ++ show b
-  show (Prod a b) = show a ++ "*" ++ show b
-  show (Rec (Sum one (Prod a recA))) = "[" ++ show a ++ "]"
-  show (Rec a) = "[" ++ show a ++ "]"
-  show (TypeVar c) = c:[]
-
-
-instance Show (T) where
-  show (Iso a b) = "(" ++ show a ++ "<-->" ++ show b ++ ")"
-  show (Comp a b t) = "(" ++ show a ++ "<-->" ++ show b ++ ")" ++ "-->" ++ show t
-
-instance Show (V) where
-  show (EmptyV) = "()"
-  show (Xval s) = s
-  show (InjL v) = "InjL" ++ show v
-  show (InjR v) = "InjR" ++ show v
-  show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
-  show (Evalue e) = show e
-
-instance Show (E) where
-  show (Val v) = show v
-  show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
-  show (Combination v1 v2) = show v1 ++ "+" ++ show v2
-  show (AlphaVal alpha e) = show (alpha) ++ "~" ++ show e
-
-
-instance Show (P) where
-  show (EmptyP) = "()"
-  show (Xprod s) = s
-  show (PairP p1 p2) = "<" ++ show p1 ++ "," ++ show p2 ++ ">"
-
-instance Show (Term) where
-  show (EmptyTerm) = "()"
-  show (XTerm s) = s
-  show (InjLt t) = "InjL" ++ show t
-  show (InjRt t) = "InjR" ++ show t
-  show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
-  show (Omega iso t1) = show iso ++ " " ++ show t1
-  show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ "\n\t\tin " ++ show t2
-  show (CombTerms t1 t2) = show t1 ++ " + " ++ show t2
-  show (AlphaTerm f t) = "(" ++ show f ++ ")" ++ show t
-  show (ValueT v) = "ValueT " ++ show v
-
-instance Show (Iso) where
-  show (Lambda s iso) = "Lam  " ++ s ++ ". " ++ show iso
-  show (IsoVar s) = s
-  show (App iso1 iso2) = show iso1 ++ " " ++ show iso2
-  show (Clauses list) = "\n{\n" ++ showPatterns list ++ "}"
-  show (Fixpoint f iso) = show "Fix " ++ f ++ ". " ++ show iso
-
-
-showPatterns :: [(V,E)] -> String
-showPatterns [] = []
-showPatterns (p1:patterns) = show (fst p1) ++ "<-->" ++ show (snd p1) ++ "\n" ++ showPatterns patterns
-
 
 type TypingState = (Delta,Psi)
-
-
---Function used to wrap evaluations of functions tha may raise a typing error.
---We use to avoid creating multiple conditionals on the function definitions. Needs a better name!!!
-wrap :: Show b => Either b a -> a
-wrap (Left err) = error (show err)
-wrap (Right val) = val
 
 --Entry point for the tests from main.
 typeCheck :: Delta -> Psi -> Iso -> T -> (Either TypeErrors T, TypingState)
@@ -240,9 +95,17 @@ matchIsoTypes supplied iso found
 --Check if product and type provided are pairs. If so, extend the context
 -- Otherwise return a typing error.
 addToContext :: Delta-> P -> A -> Either TypeErrors Delta
-addToContext delta (PairP (Xprod x) (Xprod y)) (Prod a b) = Right $ delta ++ [(x,a),(y,b)]
-addToContext delta (Xprod x) a = Right $ (x,a) : delta
+addProductToContext delta (EmptyP) a = Right delta
+addToContext delta (PairP (Xprod x) (Xprod y)) (Prod a b) = Right $ delta ++
+                                                              (wrap $ addToContext delta (Xprod x) a) ++ (wrap $ addToContext delta (Xprod y) b)
+addToContext delta (Xprod x) a = case (lookup x delta) of
+                                  Nothing -> Right $ (x,a) : delta
+                                  Just a'
+                                    | a' == a -> Right delta
+                                    | otherwise -> let (delta',_) = partition (\z -> fst z /= x) delta
+                                                   in Right $ (x,a) : delta'
 addToContext _ (PairP p1 p2) _ = Left $ ProdError "Not a product Type" (PairP p1 p2)
+
 
 
 testUnit::[E]->Bool
@@ -323,12 +186,6 @@ getFstFromPair (PairV p1 p2) = p1
 getSndFromPair :: V -> V
 getSndFromPair (PairV p1 p2) = p2
 
---Returns the bottom value from an Extended Value. (Val(e))
-bottomValue :: E -> V
-bottomValue (Val v) = v
-bottomValue (LetE p1 iso p2 e) = bottomValue e
-bottomValue (Combination e1 e2) = bottomValue e1
-bottomValue (AlphaVal alpha e) = bottomValue e
 
 freeValueVariables :: [V] -> [String]
 freeValueVariables [] = []
@@ -358,10 +215,10 @@ isoLookup (IsoVar s) psi = lookup s psi
 isoLookup (Lambda s iso) psi = lookup s psi
 isoLookup _ _= Nothing
 
-addProductToContext :: Delta -> P -> A -> Delta
-addProductToContext delta (EmptyP) a = delta
-addProductToContext delta (Xprod x) a = (x,a):delta
-addProductToContext delta (PairP p1 p2) (Prod a b) = addProductToContext delta p1 a ++ addProductToContext delta p2 b
+-- addProductToContext :: Delta -> P -> A -> Delta
+-- addProductToContext delta (EmptyP) a = delta
+-- addProductToContext delta (Xprod x) a = (x,a):delta
+-- addProductToContext delta (PairP p1 p2) (Prod a b) = addProductToContext delta p1 a ++ addProductToContext delta p2 b
 
 
 
@@ -475,7 +332,7 @@ extendedValueTypeCheck (LetE p1 iso p2 e) a = do
                                                   in do
                                                         st1 <- productsTypecheck p2 $ fst isoType
                                                         if(fst isoType) == (wrap st1)
-                                                          then let newDelta = addProductToContext delta p1 $ snd isoType
+                                                          then let newDelta = wrap $ addToContext delta p1 $ snd isoType
                                                                   in do
                                                                         put(newDelta,psi)
                                                                         debug("LetExtVal: adding p1 to context:" ++ (show p1) ++ ": " ++ (show (snd isoType)))

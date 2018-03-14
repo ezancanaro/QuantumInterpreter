@@ -1,6 +1,7 @@
-# ignorar objetos e executáveis
+# ignorar objetos e executï¿½veis
 *.o
 *.hi
 *.exe
 *.o
 *.bat
+Tests.hs
