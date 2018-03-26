@@ -102,9 +102,25 @@ testNotEval = let  bool = Sum One One
               in show (applicativeContext check) ++ "\n"
                     ++ show (applicativeContext check2)
 
+testHadHad :: String
+testHadHad =  let (had,isoType) = hadIso
+                  delta = []
+                  psi = []
+                  combVal = ValueT $ Evalue $ Combination (AlphaVal alpha (Val tt)) (AlphaVal beta (Val ff))
+                  check = Omega had (combVal)
+                  in ("Had Type:" ++ show (typeCheck delta psi had isoType) )
+                    ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
 
 
-
+combinationTest :: String
+combinationTest = let a1 = alpha * alpha
+                      a2 = beta * alpha
+                      p1 = (a1,ttE)
+                      p2 = (a1,ffE)
+                      p3 = (a1,ttE)
+                      p4 = (a2,ffE)
+                      list = [p1,p2,p3,p4]
+                   in show (addAllCombinations list)
 
 main = do
         putStr ("tests: if | map | had | mapAcc | cnot | terms --Input quit to stop.\n ")
@@ -120,4 +136,6 @@ main = do
           "quit" -> exitSuccess
           otherwise -> putStr "That function is not defined!!"
         putStr "\n\n\n"
+        putStr testHadHad
+        --putStr $ "\n\n\n\n  CombinationTest:  " ++ combinationTest
         main

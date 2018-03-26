@@ -31,7 +31,7 @@ matching sigma (PairV v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
                                                   sig2 = matching sigma v2 w2
                                              in case (sig1,sig2) of
                                                   (Just sigma1,Just sigma2) -> case intersectionTest support sigma1 sigma2 of
-                                                                                    [] -> Just $ sigma1 `union`sigma2
+                                                                                    [] -> Just $ sigma1 `union` sigma2
                                                                                     otherwise -> Nothing
                                                   _ -> Nothing
 matching _ term val = Nothing
@@ -52,6 +52,7 @@ applicativeContext (ValueT v) = v
 
 reductionRules :: Term -> V
 reductionRules (Let p (ValueT v1) t2) = replace t2 $ catchMaybe $ matching  [] (productVal p) v1
+reductionRules (Omega (Clauses isoDefs) (ValueT (Evalue e))) = wrap $ matchLinearCombinations isoDefs e 1
 reductionRules (Omega (Clauses isoDefs) (ValueT v)) = let match = matchClauses isoDefs v 0 -- NOT COMPLETED YET
                                                           i = snd match
                                                           term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
@@ -288,12 +289,91 @@ testSubs iso (Just s) = s
 
 matchClauses :: [(V,E)] -> V -> Int-> (Sigma,Int)
 matchClauses [] v i = ([],i)
+-- matchClauses list (Evalue v) i = matchLinearCombinations list v i
 matchClauses (ve:list) v i = let sig =  matching [] (fst ve) v
                               in case sig of
                                     Just sigma -> debug("matched: " ++ show v ++ "sig:" ++ show sig)
                                                       (sigma,i)
                                     Nothing    -> debug("Can't match pattern: " ++ show (fst ve) ++ " with value:" ++ show v)
                                                       matchClauses list v $ i+1
+
+
+matchLinearCombinations :: [(V,E)] -> E -> Int -> Either [Char] V
+matchLinearCombinations ve e i = let e' = algebraicProperties e
+                                     vlist = grabValuesFromCombinations e'
+                                     (alphas,vs) = listsFromPairs vlist
+                                     sigmas = [matchClauses ve (v) 0 | v <- vs]
+                                     wi = [reduceE (fst s) (snd $ ve !! (snd s)) | s <- sigmas]
+                                     summs = sumWi alphas wi
+                                     result = Evalue $! algebraicProperties summs
+                                     in Right result
+
+sumWi :: [Alpha Fixed] -> [V] -> E
+sumWi (a:[])( (Evalue e): []) = case e of
+                                  (Val (Evalue e2)) -> algebraicProperties $ AlphaVal a e2
+                                  otherwise         -> algebraicProperties $ AlphaVal a e
+sumWi (a:alphas)( (Evalue e): vlist) = case e of
+                                        (Val (Evalue e2)) -> Combination e' (sumWi alphas vlist)
+                                                                where e' = algebraicProperties $ AlphaVal a e2
+                                        otherwise         -> Combination e' (sumWi alphas vlist)
+                                                                where e' = algebraicProperties $ AlphaVal a e
+
+--AlphaVal alpha (Comb alphatt alphaff)
+
+
+grabValuesFromCombinations :: E -> [(Alpha Fixed,V)]
+grabValuesFromCombinations (Combination e1 e2) = grabValuesFromCombinations e1 ++ grabValuesFromCombinations e2
+grabValuesFromCombinations (AlphaVal a (Val v)) = [(a,v)]
+-- grabValuesFromCombinations (AlphaVal a e) = [(a,v)] where v = grabValuesFromCombinations e
+
+
+algebraicProperties :: E -> E
+algebraicProperties (AlphaVal a (Combination e1 e2)) = Combination e1' e2'
+                                                        where e1' = algebraicProperties (AlphaVal a e1)
+                                                              e2' = algebraicProperties (AlphaVal a e2)
+algebraicProperties (AlphaVal a (AlphaVal b e)) = AlphaVal (a*b) e
+algebraicProperties (AlphaVal a (Val (Evalue e))) = algebraicProperties (AlphaVal a e)
+algebraicProperties (Combination (AlphaVal a e1) (AlphaVal b e2))
+  | e1 == e2 = AlphaVal (a+b) e1
+  | otherwise = (Combination (AlphaVal a e1) (AlphaVal b e2))
+algebraicProperties (Combination e1 e2) = let e' = pairAlphasWithValues (Combination e1 e2)
+                                            in remakeCombination $ addAllCombinations e'
+algebraicProperties e = error "...."
+                        --error $ "no can do: " ++ show e
+
+--Combination (a tt) (Combination a ff (combination a tt (Combination b ff)))
+
+
+addAllCombinations :: [(Alpha Fixed,E)] -> [(Alpha Fixed,E)]
+addAllCombinations [] = []
+addAllCombinations (a1:list) = let list' = adds a1 list
+                               in if list' == list then a1 : addAllCombinations list
+                                  else addAllCombinations list'
+
+
+
+adds :: (Alpha Fixed, E) -> [(Alpha Fixed, E)]  -> [(Alpha Fixed, E)]
+adds a1 [] = []
+adds a1 (a2:list) = case addIfEqual a1 (a2) of
+                         Just a -> (a:list)
+                         Nothing -> (a2) : adds a1 list
+
+addIfEqual :: (Alpha Fixed, E) -> (Alpha Fixed, E) -> Maybe (Alpha Fixed, E)
+addIfEqual (a1,e1) (a2,e2) = if e1 == e2 then Just (a1+a2,e1)
+                             else Nothing
+
+pairAlphasWithValues :: E -> [(Alpha Fixed, E)]
+pairAlphasWithValues (AlphaVal a e) = (a,e) : []
+pairAlphasWithValues (Combination e1 e2) = pairAlphasWithValues e1 ++ pairAlphasWithValues e2
+
+
+
+--Remake the original combination (Combination e1 (Combination e2 e3)) after applying the algebraicProperties.
+--Since (Comb e2 e3) has been tested, is impossible to get both combinations reduced to an AlphaVal at this point.
+remakeCombination :: [(Alpha Fixed, E)] -> E
+remakeCombination ((a,e):[]) = AlphaVal a e
+remakeCombination ((a,e):list) = Combination (AlphaVal a e) $ remakeCombination list
+
 
 
 

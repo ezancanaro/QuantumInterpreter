@@ -40,7 +40,7 @@ data E =  Val V
         | LetE P Iso P E
         | Combination E E
         | AlphaVal (Alpha Fixed) E
-        deriving(Eq)
+        deriving(Eq,Show)
 data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso
@@ -105,16 +105,16 @@ instance Show (V) where
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
   show (Evalue e) = show e
 
-instance Show (E) where
-  show (Val v) = show v
-  show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
-  show (Combination v1 v2)
-      | show v1 == "" = show v2
-      | show v2 == "" = show v1
-      | otherwise = show v1 ++ "+" ++ show v2
-  show (AlphaVal alpha e)
-      | alpha == 0 = ""
-      | otherwise = show (alpha) ++ "~" ++ show e
+-- instance Show (E) where
+--   show (Val v) = show v
+--   show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
+--   show (Combination v1 v2)
+--       | show v1 == "" = show v2
+--       | show v2 == "" = show v1
+--       | otherwise = show v1 ++ "+" ++ show v2
+--   show (AlphaVal alpha e)
+--       | alpha == 0 = ""
+--       | otherwise = show (alpha) ++ "~" ++ show e
 
 instance Show (P) where
   show (EmptyP) = "()"
