@@ -6,7 +6,7 @@ import Semantics
 import IsoDefinitions
 
 import Data.Complex
-import Numeric.Fixed
+import Data.Number.CReal
 import Control.Monad
 import System.Exit
 
@@ -123,7 +123,7 @@ combinationTest = let a1 = alpha * alpha
                    in show (addAllCombinations list)
 
 main = do
-        putStr ("tests: if | map | had | mapAcc | cnot | terms --Input quit to stop.\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms --Input quit to stop.\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -133,9 +133,9 @@ main = do
           "cnot" -> putStr testCnot
           "terms" -> putStr testTerms
           "a" -> putStr testNotEval
+          "hadHad" -> putStr testHadHad
           "quit" -> exitSuccess
           otherwise -> putStr "That function is not defined!!"
         putStr "\n\n\n"
-        putStr testHadHad
         --putStr $ "\n\n\n\n  CombinationTest:  " ++ combinationTest
         main

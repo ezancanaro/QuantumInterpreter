@@ -2,7 +2,7 @@ module Utils where
 import AbstractData
 import Debug.Trace
 import Data.Complex
-import Numeric.Fixed
+import Data.Number.CReal
 
 --Debugging flag-
 doDebug = False
@@ -25,8 +25,8 @@ recursiveA = Rec a
 b = TypeVar 'b'
 recursiveB = Rec b
 recBool = Rec bool
-a1 = toFixed (1/sqrt(2))
-a2 = toFixed (-1/sqrt(2)) --fixed precision numbers
+a1 = (1/sqrt(2)) :: CReal
+a2 = (-1/sqrt(2)) :: CReal--fixed precision numbers
 alpha = (a1 :+ 0)
 beta = (a2 :+ 0) -- complex numbers
 -----------------------------------------------

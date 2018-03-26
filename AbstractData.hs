@@ -1,7 +1,7 @@
 module AbstractData where
 
 
-import Numeric.Fixed
+import Data.Number.CReal
 import Data.Complex
 
 data A =  One -- 1
@@ -39,7 +39,7 @@ data P =  EmptyP
 data E =  Val V
         | LetE P Iso P E
         | Combination E E
-        | AlphaVal (Alpha Fixed) E
+        | AlphaVal (Alpha) E
         deriving(Eq,Show)
 data Iso = Lambda String Iso
         | IsoVar String
@@ -56,7 +56,7 @@ data Term = EmptyTerm
         | Let P Term Term
         -- EXTENSION TERMS
         | CombTerms Term Term
-        | AlphaTerm (Alpha Fixed) Term
+        | AlphaTerm (Alpha) Term
         | ValueT V -- Using it for semantics derivation. (Represents a term that was reduced to a Value)
         deriving(Eq)
 
@@ -72,7 +72,7 @@ data TypeErrors = VarError String String
         | FixpointError String String
         deriving(Show,Eq)
 
-type Alpha = Complex
+type Alpha = Complex CReal
 
 --data E = Let P Phi P E
 

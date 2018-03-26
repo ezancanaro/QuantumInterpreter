@@ -4,15 +4,15 @@ import AbstractData
 import Utils
 
 import Data.Complex
-import Numeric.Fixed
+import Data.Number.CReal
 
 
 
 
 
 hadIso :: (Iso,T)
-hadIso = let a1 = toFixed (1/sqrt(2))
-             a2 = toFixed (-1/sqrt(2)) --fixed precision numbers
+hadIso = let a1 = (1/sqrt(2))::CReal
+             a2 = (-1/sqrt(2))::CReal --fixed precision numbers
              alpha = (a1 :+ 0)
              beta = (a2 :+ 0) -- complex numbers
              eTT = Val tt --ExtendedValue true

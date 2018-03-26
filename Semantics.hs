@@ -2,7 +2,7 @@ module Semantics where
 import AbstractData
 import Utils
 
-import Numeric.Fixed
+import Data.Number.CReal
 import Data.Complex
 import Data.List
 import Data.Matrix -- Needs installing via Cabal
@@ -308,7 +308,7 @@ matchLinearCombinations ve e i = let e' = algebraicProperties e
                                      result = Evalue $! algebraicProperties summs
                                      in Right result
 
-sumWi :: [Alpha Fixed] -> [V] -> E
+sumWi :: [Alpha] -> [V] -> E
 sumWi (a:[])( (Evalue e): []) = case e of
                                   (Val (Evalue e2)) -> algebraicProperties $ AlphaVal a e2
                                   otherwise         -> algebraicProperties $ AlphaVal a e
@@ -321,7 +321,7 @@ sumWi (a:alphas)( (Evalue e): vlist) = case e of
 --AlphaVal alpha (Comb alphatt alphaff)
 
 
-grabValuesFromCombinations :: E -> [(Alpha Fixed,V)]
+grabValuesFromCombinations :: E -> [(Alpha,V)]
 grabValuesFromCombinations (Combination e1 e2) = grabValuesFromCombinations e1 ++ grabValuesFromCombinations e2
 grabValuesFromCombinations (AlphaVal a (Val v)) = [(a,v)]
 -- grabValuesFromCombinations (AlphaVal a e) = [(a,v)] where v = grabValuesFromCombinations e
@@ -344,7 +344,7 @@ algebraicProperties e = error "...."
 --Combination (a tt) (Combination a ff (combination a tt (Combination b ff)))
 
 
-addAllCombinations :: [(Alpha Fixed,E)] -> [(Alpha Fixed,E)]
+addAllCombinations :: [(Alpha,E)] -> [(Alpha,E)]
 addAllCombinations [] = []
 addAllCombinations (a1:list) = let list' = adds a1 list
                                in if list' == list then a1 : addAllCombinations list
@@ -352,17 +352,17 @@ addAllCombinations (a1:list) = let list' = adds a1 list
 
 
 
-adds :: (Alpha Fixed, E) -> [(Alpha Fixed, E)]  -> [(Alpha Fixed, E)]
+adds :: (Alpha, E) -> [(Alpha, E)]  -> [(Alpha, E)]
 adds a1 [] = []
 adds a1 (a2:list) = case addIfEqual a1 (a2) of
                          Just a -> (a:list)
                          Nothing -> (a2) : adds a1 list
 
-addIfEqual :: (Alpha Fixed, E) -> (Alpha Fixed, E) -> Maybe (Alpha Fixed, E)
+addIfEqual :: (Alpha, E) -> (Alpha, E) -> Maybe (Alpha, E)
 addIfEqual (a1,e1) (a2,e2) = if e1 == e2 then Just (a1+a2,e1)
                              else Nothing
 
-pairAlphasWithValues :: E -> [(Alpha Fixed, E)]
+pairAlphasWithValues :: E -> [(Alpha, E)]
 pairAlphasWithValues (AlphaVal a e) = (a,e) : []
 pairAlphasWithValues (Combination e1 e2) = pairAlphasWithValues e1 ++ pairAlphasWithValues e2
 
@@ -370,7 +370,7 @@ pairAlphasWithValues (Combination e1 e2) = pairAlphasWithValues e1 ++ pairAlphas
 
 --Remake the original combination (Combination e1 (Combination e2 e3)) after applying the algebraicProperties.
 --Since (Comb e2 e3) has been tested, is impossible to get both combinations reduced to an AlphaVal at this point.
-remakeCombination :: [(Alpha Fixed, E)] -> E
+remakeCombination :: [(Alpha, E)] -> E
 remakeCombination ((a,e):[]) = AlphaVal a e
 remakeCombination ((a,e):list) = Combination (AlphaVal a e) $ remakeCombination list
 
