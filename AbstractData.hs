@@ -40,7 +40,7 @@ data E =  Val V
         | LetE P Iso P E
         | Combination E E
         | AlphaVal (Alpha) E
-        deriving(Eq,Show)
+        deriving(Eq)
 data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso
@@ -105,16 +105,16 @@ instance Show (V) where
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
   show (Evalue e) = show e
 
--- instance Show (E) where
---   show (Val v) = show v
---   show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
---   show (Combination v1 v2)
---       | show v1 == "" = show v2
---       | show v2 == "" = show v1
---       | otherwise = show v1 ++ "+" ++ show v2
---   show (AlphaVal alpha e)
---       | alpha == 0 = ""
---       | otherwise = show (alpha) ++ "~" ++ show e
+instance Show (E) where
+  show (Val v) = show v
+  show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
+  show (Combination v1 v2)
+      | show v1 == "" = show v2
+      | show v2 == "" = show v1
+      | otherwise = show v1 ++ "+" ++ show v2
+  show (AlphaVal alpha e)
+      | alpha == 0 = ""
+      | otherwise = show (alpha) ++ "~" ++ show e
 
 instance Show (P) where
   show (EmptyP) = "()"
@@ -133,6 +133,7 @@ instance Show (Term) where
   show (CombTerms t1 t2) = show t1 ++ " + " ++ show t2
   show (AlphaTerm f t) = "(" ++ show f ++ ")" ++ show t
   show (ValueT v) = "ValueT " ++ show v
+
 
 instance Show (Iso) where
   show (Lambda s iso) = "Lam  " ++ s ++ ". " ++ show iso
