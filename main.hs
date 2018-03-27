@@ -19,9 +19,14 @@ test1 = let (ifIso,ifType) = if1
             (had,_) = hadIso
             term = (PairTerm (InjLt EmptyTerm) (InjLt EmptyTerm))
             check = Omega (App ifIso (App had had)) term
+            evaluation = ValueT $ applicativeContext check
+            if' = invertIso ifIso
+            if'Type = invertType ifType
+            check2 = Omega (App if' (App had had)) evaluation
             in ("If Type:" ++ show (typeCheck delta psi ifIso ifType) )
               ++ "\nTestig if, with g,h being Had\n" ++ show ifIso ++ "\n" ++  show term ++".\nEvals to:\n\t" ++ show (applicativeContext check)
-                ++ "\n\nInverted if: " ++ show (invertIso ifIso)
+                ++ "\n\nInverted if: " ++ show (invertIso ifIso) ++ "Typed: " ++ show if'Type
+                  ++ "\n  Evals to: " ++ show (applicativeContext check2)
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
 testMap :: String

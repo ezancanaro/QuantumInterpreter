@@ -56,3 +56,14 @@ boolLists :: [Bool] -> Term
 boolLists [] = InjLt EmptyTerm
 boolLists (False:lb) = InjRt $ PairTerm (falseTerm) (boolLists lb)
 boolLists (True:lb) = InjRt $ PairTerm (trueTerm) (boolLists lb)
+
+getLinearAlphas :: E -> [Alpha]
+getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2
+getLinearAlphas (Combination (Val v) v2) = (1 :+ 0) : getLinearAlphas v2 -- 1*CVal = CVal
+getLinearAlphas (Val v) = (1 :+ 0):[]
+getLinearAlphas (AlphaVal a _) = a:[]
+getLinearAlphas (LetE _ _ _ e) = getLinearAlphas e
+
+getLinearTerms :: [E] ->[[Alpha]]
+getLinearTerms [] = []
+getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist

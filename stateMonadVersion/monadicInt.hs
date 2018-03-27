@@ -122,16 +122,7 @@ isUnitary lists = let mat =  debug(show lists ++ "\n")
                          else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
                                 False
 
-getLinearAlphas :: E -> [Alpha]
-getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2
-getLinearAlphas (Combination (Val v) v2) = (1 :+ 0) : getLinearAlphas v2 -- 1*CVal = CVal
-getLinearAlphas (Val v) = (1 :+ 0):[]
-getLinearAlphas (AlphaVal a _) = a:[]
-getLinearAlphas (LetE _ _ _ e) = getLinearAlphas e
 
-getLinearTerms :: [E] ->[[Alpha]]
-getLinearTerms [] = []
-getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist
 
 --Creates the set defining a OrthogonalDecomposition (OD) of value A.
 orthogonalDecomposition :: Delta -> A -> OD -> [V] -> Either TypeErrors OD

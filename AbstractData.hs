@@ -41,6 +41,7 @@ data E =  Val V
         | Combination E E
         | AlphaVal (Alpha) E
         deriving(Eq)
+        --deriving(Eq,Show)
 data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso

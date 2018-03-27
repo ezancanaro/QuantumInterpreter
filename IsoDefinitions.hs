@@ -37,7 +37,7 @@ if1 = let   x = Xval "x"
             e1 = LetE (Xprod "y") g (Xprod "x")
                         (Combination (AlphaVal (1:+0) (Val p1)) (AlphaVal (0:+0) (Val p2)))
             e2 = LetE (Xprod "y") h (Xprod "x")
-                        (Combination (AlphaVal (0:+0) (Val p1)) (AlphaVal ((-1):+0) (Val p2)))
+                        (Combination (AlphaVal (0:+0) (Val p1)) (AlphaVal (1:+0) (Val p2)))
             iso1 = Clauses [(v1,e1),(v2,e2)]
             lambdaH = Lambda "h" iso1
             ifIso = Lambda "g" lambdaH

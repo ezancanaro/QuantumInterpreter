@@ -72,6 +72,7 @@ reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let unfoldedR
 --                                                                           if checkIfFixedPoint term f then reduceE (fst match) term
 --                                                                           else reductionRules (Omega (isoReducing (Fixpoint f (Clauses isoDefs))) (ValueV t))
 --                                                                                     --not correct
+reductionRules t = error $ "Botched reduction: " ++ show t
 
 buildLamFromFix :: String -> V -> Iso -> Iso
 buildLamFromFix f v fix = let listLams = findFixedPoint f 0 v fix
@@ -365,7 +366,8 @@ addIfEqual (a1,e1) (a2,e2) = if e1 == e2 then Just (a1+a2,e1)
 pairAlphasWithValues :: E -> [(Alpha, E)]
 pairAlphasWithValues (AlphaVal a e) = (a,e) : []
 pairAlphasWithValues (Combination e1 e2) = pairAlphasWithValues e1 ++ pairAlphasWithValues e2
-
+pairAlphasWithValues (Val (Evalue e)) = pairAlphasWithValues e --Casting a Value back to an ExtendedVal
+pairAlphasWithValues e = error $ "Botched this: " ++ show e
 
 
 --Remake the original combination (Combination e1 (Combination e2 e3)) after applying the algebraicProperties.
@@ -402,6 +404,57 @@ isVal _ = True
 
 -------------------------------------- Iso Inversion
 
+
+invertLinearClauses :: [V] -> [E] -> Int -> [(V,E)]
+invertLinearClauses _ [] _ = []
+invertLinearClauses v (e:elist) i = let (v',e') = swapCombinationVals v e i
+                                        invE = invertExtendedValue e'
+                                        in (v',invE): invertLinearClauses v elist (i+1)
+
+
+swapCombinationVals :: [V] -> E -> Int -> (V,E)
+swapCombinationVals vlist (Combination e1 e2) i = let e' =  pairAlphasWithValues (Combination e1 e2)
+                                                      swappedE =  swapVals vlist e'
+                                                      v' = toValue $ snd $ e' !! i
+                                                      in (v',remakeCombination swappedE)
+swapCombinationVals vlist (LetE p1 iso p2 e') i = let (v',newE) = swapCombinationVals vlist e' i
+                                                      in (v', LetE p1 iso p2 newE)
+
+toValue :: E -> V
+toValue (Val v) = v
+toValue (AlphaVal a e) = toValue e
+toValue _ = error "Should never occur in a well-typed expression"
+
+
+swapVals :: [V] -> [(Alpha,E)] -> [(Alpha,E)]
+swapVals [] [] = []
+swapVals (v:vlist) ((a,e):aelist) = (a,Val v) : swapVals vlist aelist
+
+
+invertCl :: [(V,E)] -> [(V,E)]
+invertCl [] = []
+invertCL list = let (values,linearEs) = listsFromPairs list
+                    matrix = (fromLists . getLinearTerms) linearEs
+                    inverseLinearAlphas = toLists $ wrap $ inverse matrix
+                    inverseLinears = rebuildEs linearEs inverseLinearAlphas
+                    newClauses = invertLinearClauses values inverseLinears 0
+                    in newClauses
+                      --error $ "NC: " ++ show newClauses
+
+rebuildEs :: [E] -> [[Alpha]] -> [E]
+rebuildEs [] [] = []
+rebuildEs (e:elist) (alphas:alplist) = rebuild e alphas : rebuildEs elist alplist
+
+rebuild :: E -> [Alpha] -> E
+rebuild (Combination e1 e2) (alist) = remakeCombination a'e
+                                        where a'e = swapAlphas alist $ pairAlphasWithValues (Combination e1 e2)
+rebuild (LetE p1 iso p2 e') (alist) = LetE p1 iso p2 $ rebuild e' alist
+rebuild _ _ = error "Right-hand side of clauses Are neither a Combination nor a LetExpression"
+
+swapAlphas :: [Alpha] -> [(Alpha,E)] -> [(Alpha,E)]
+swapAlphas [] [] = []
+swapAlphas (a':alist) ((a,e):aelist)  = (a',e) : swapAlphas alist aelist
+
 invertType :: T -> T
 invertType (Iso a b) = Iso b a
 invertType (Comp a b t) = Comp b a (invertType t)
@@ -409,9 +462,9 @@ invertType (Comp a b t) = Comp b a (invertType t)
 invertIso :: Iso -> Iso
 invertIso (IsoVar f) = IsoVar $ f ++ "'"
 invertIso (App omega1 omega2) = App (invertIso omega1) (invertIso omega1)
-invertIso (Lambda f omega) = Lambda f (invertIso omega)
-invertIso (Fixpoint f omega) = Fixpoint f (invertIso omega)
-invertIso (Clauses listVE) = Clauses $ invertClauses listVE
+invertIso (Lambda f omega) = Lambda (f++"'") (invertIso omega)
+invertIso (Fixpoint f omega) = Fixpoint (f++"'") (invertIso omega)
+invertIso (Clauses listVE) = Clauses $ invertCL listVE
 
 
 invertClauses :: [(V,E)] -> [(V,E)]
@@ -421,7 +474,11 @@ invertClauses (ve:listVE) = let e' = invertExtendedValue $ snd ve
                             in buildInverted ve e' v' : invertClauses listVE
 
 invertExtendedValue :: E -> E
-invertExtendedValue (LetE p1 omega p2 e) = LetE p2 (invertIso omega) p1 (invertExtendedValue e)
+invertExtendedValue (LetE p1 omega p2 e) = let omega' = invertIso omega in
+                                               case invertExtendedValue e of
+                                                (LetE p1' omega' p2' e') -> LetE p1' omega' p2' thisLet
+                                                      where thisLet = LetE p2 omega' p1 e'
+                                                otherwise -> LetE p2 omega' p1 $ invertExtendedValue e
 invertExtendedValue e = e
 
 buildInverted :: (V,E) -> E -> V -> (V,E)
