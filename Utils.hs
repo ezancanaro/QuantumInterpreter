@@ -6,7 +6,9 @@ import Data.Number.CReal
 
 --Debugging flag-
 doDebug = False
-          --True
+          --True -- You honestly should not do it. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
+
+
 --Making debug statements easier to use
 debug a b = if doDebug then Debug.Trace.trace a b else b
 --Remember to remove debugging statements after checks
@@ -64,6 +66,9 @@ getLinearAlphas (Val v) = (1 :+ 0):[]
 getLinearAlphas (AlphaVal a _) = a:[]
 getLinearAlphas (LetE _ _ _ e) = getLinearAlphas e
 
+-- getLinearTerms :: [E] ->[[Alpha]]
+-- getLinearTerms [] = []
+-- getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist
+
 getLinearTerms :: [E] ->[[Alpha]]
-getLinearTerms [] = []
-getLinearTerms (e:elist) = getLinearAlphas e : getLinearTerms elist
+getLinearTerms (elist) = map getLinearAlphas elist

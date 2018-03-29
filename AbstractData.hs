@@ -100,9 +100,9 @@ instance Show (T) where
 instance Show (V) where
   show (EmptyV) = "()"
   show (Xval s) = s
-  show (InjL v) = "InjL" ++ show v
-  show (InjR (PairV v1 v2)) = "InjR" ++ show v1 ++ ",\n" ++ show v2
-  show (InjR v) = "InjR" ++ show v
+  show (InjL v) = "InjL_" ++ show v
+  show (InjR (PairV v1 v2)) = "InjR_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
+  show (InjR v) = "InjR_" ++ show v
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
   show (Evalue e) = show e
 
@@ -115,6 +115,8 @@ instance Show (E) where
       | otherwise = show v1 ++ "+" ++ show v2
   show (AlphaVal alpha e)
       | alpha == 0 = ""
+      | alpha == 1 = "1~" ++ show e
+      | imagPart alpha == 0 = show (realPart alpha) ++ "~" ++ show e
       | otherwise = show (alpha) ++ "~" ++ show e
 
 instance Show (P) where
@@ -125,9 +127,9 @@ instance Show (P) where
 instance Show (Term) where
   show (EmptyTerm) = "()"
   show (XTerm s) = s
-  show (InjLt t) = "InjL" ++ show t
-  show (InjRt (PairTerm t1 t2)) = "InjRt" ++ show t1 ++ ",\n" ++ show t2
-  show (InjRt t) = "InjR" ++ show t
+  show (InjLt t) = "InjL_" ++ show t
+  show (InjRt (PairTerm t1 t2)) = "InjRt_[" ++ show t1 ++ " : " ++ show t2 ++ "]"
+  show (InjRt t) = "InjR_" ++ show t
   show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
   show (Omega iso t1) = show iso ++ " " ++ show t1
   show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ "\n\t\tin " ++ show t2
@@ -141,7 +143,7 @@ instance Show (Iso) where
   show (IsoVar s) = s
   show (App iso1 iso2) = show iso1 ++ " " ++ show iso2
   show (Clauses list) = "\n{\n" ++ showPatterns list ++ "}"
-  show (Fixpoint f iso) = show "Fix " ++ f ++ ". " ++ show iso
+  show (Fixpoint f iso) = "Fix " ++ f ++ ". " ++ show iso
 
 showPatterns :: [(V,E)] -> String
 showPatterns [] = []

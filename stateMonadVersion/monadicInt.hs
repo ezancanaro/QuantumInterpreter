@@ -178,6 +178,7 @@ getSndFromPair :: V -> V
 getSndFromPair (PairV p1 p2) = p2
 
 
+
 freeValueVariables :: [V] -> [String]
 freeValueVariables [] = []
 freeValueVariables ((Xval x):values) = x : freeValueVariables values

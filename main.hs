@@ -24,7 +24,7 @@ test1 = let (ifIso,ifType) = if1
             if'Type = invertType ifType
             check2 = Omega (App if' (App had had)) evaluation
             in ("If Type:" ++ show (typeCheck delta psi ifIso ifType) )
-              ++ "\nTestig if, with g,h being Had\n" ++ show ifIso ++ "\n" ++  show term ++".\nEvals to:\n\t" ++ show (applicativeContext check)
+              ++ "\nTestig if, with g,h being Had\n" ++ show ifIso ++ "\n" ++  show term ++".\nEvals to:\n\t" ++ show evaluation
                 ++ "\n\nInverted if: " ++ show (invertIso ifIso) ++ "Typed: " ++ show if'Type
                   ++ "\n  Evals to: " ++ show (applicativeContext check2)
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
@@ -41,20 +41,35 @@ testMap =
       check = Omega (App map' had) (littleList)
       check2 = Omega (App map' had) (notSoLittleList)
       check3 = Omega (App map' had) list3
+      inverseMap = invertIso map'
+      inverseMapType = invertType isoType
+      result = ValueT $ applicativeContext check3
+      check' = Omega (App inverseMap had) result
+      result' = applicativeContext check'
       in ( "\n Has Type: " ++ show (typeCheck delta psi map' isoType))
-        ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show (applicativeContext check3)
+        ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show result
+          ++ "\n\n Inverse Map: " ++ show inverseMap
+            ++ "\n\n Evals to: " ++ show result'
 
 testHad :: String
 testHad = let (had,isoType) = hadIso
               delta = []
               psi = []
-              check = Omega had (InjLt EmptyTerm)
-              in ("Had Type:" ++ show (typeCheck delta psi had isoType) )
-                ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
+              arg = InjLt EmptyTerm
+              check = Omega had arg
+              result = ValueT $ applicativeContext check
+              invHad = invertIso had
+              invHadType = invertType isoType
+              result' = applicativeContext (Omega had result)
+              in ("Iso Had::" ++ show (typeCheck delta psi had isoType) ++ "\n" ++ show had)
+                ++  "Applied to" ++ show arg ++ "\n\nEvals to:\n\t " ++ show result
+                  ++ "\n\nInverse Had:\n\t " ++ show invHad
+                    ++ "\n\n Evals to:\n\t " ++ show result'
+
 
 testMapAcc :: String
 testMapAcc =  let (mapAcc,isoType) = mapAccIso
-                  delta = [("x'",a),("h1",b),("t1",recursiveB)]
+                  delta = [("x'",bool),("h1",bool),("t1",Rec bool)]
                   psi = []
                   in ("MapAcc Type: " ++ show (typeCheck delta psi mapAcc isoType))
 
@@ -62,8 +77,11 @@ testCnot :: String
 testCnot = let  (cnot,isoType) = cnotIso
                 delta = [("tb",bool),("cbs",recBool)]
                 psi = [("not",Iso bool bool)]
+                invCnot = invertIso cnot
 
-                in ("Cnot Type: " ++ show (typeCheck delta psi cnot isoType))
+                in ("Cnot: " ++ show (typeCheck delta psi cnot isoType) ++ "\n" ++ show cnot)
+                  ++ "\n\nInverse:\n\t " ++ show invCnot
+
 
 testTerms :: String
 testTerms = let  bool = Sum One One

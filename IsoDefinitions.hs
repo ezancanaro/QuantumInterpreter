@@ -63,11 +63,11 @@ map1 =let   a = TypeVar 'a'
             emptyList = InjL EmptyV
             l1 = InjR (PairV emptyList emptyList)
             l2 = InjR (PairV h t)
-            e1 = (Combination (Val emptyList) (AlphaVal (0:+0) (Val emptyList)))
+            e1 = (Combination (AlphaVal (1:+0)(Val emptyList)) (AlphaVal (0:+0) (Val emptyList)))
             f = IsoVar "f"
             g = IsoVar "g"
             eE = LetE (Xprod "m") f (Xprod "t")
-                    (Combination (AlphaVal (0:+0) (Val (InjR $ PairV n m))) (Val (InjR $ PairV n m)))
+                    (Combination (AlphaVal (0:+0) (Val emptyList)) (AlphaVal (1:+0)(Val (InjR $ PairV n m))))
             e2 = LetE (Xprod "n") g (Xprod "h") eE
             func = Clauses [(emptyList,e1),(l2,e2)]
             fixPf = Fixpoint "f" func
@@ -78,9 +78,9 @@ map1 =let   a = TypeVar 'a'
 
 mapAccIso :: (Iso,T)
 mapAccIso=
-        let a = TypeVar 'a'
-            b = TypeVar 'b'
-            c = TypeVar 'c'
+        let a = bool
+            b = bool
+            c = bool
             x' = Xval "x'"
             y' = Xval "y'"
             h1 = Xval "h1"

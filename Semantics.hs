@@ -1,3 +1,4 @@
+{-# LANGUAGE ParallelListComp #-}
 module Semantics where
 import AbstractData
 import Utils
@@ -52,7 +53,8 @@ applicativeContext (ValueT v) = v
 
 reductionRules :: Term -> V
 reductionRules (Let p (ValueT v1) t2) = replace t2 $ catchMaybe $ matching  [] (productVal p) v1
-reductionRules (Omega (Clauses isoDefs) (ValueT (Evalue e))) = wrap $ matchLinearCombinations isoDefs e 1
+reductionRules (Omega (Clauses isoDefs) (ValueT (Evalue e))) = debug("Matching eval..")
+                                                                  wrap $ matchLinearCombinations isoDefs e 1
 reductionRules (Omega (Clauses isoDefs) (ValueT v)) = let match = matchClauses isoDefs v 0 -- NOT COMPLETED YET
                                                           i = snd match
                                                           term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
@@ -109,7 +111,24 @@ findFixedPoint f i (InjR (PairV h t)) fix = let fix' = renameInFixedPoint f (i+1
                                                 pairNameIso = ((f ++ show i), renameIsoVars i fix')
                                                 in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
                                                     pairNameIso : findFixedPoint f (i+1) t fix
+--Special case for applying a Linear Combination to a fixPoint.
+--Since amplitudes are not taken into consideration when pattern-matching values, we ignore them to create the proper unfolded function.
+findFixedPoint f i (Evalue e) fix = findFixedPoint f i v fix
+                                      where v = catchMaybe $ extractValue e
+findFixedPoint f i v iso = error $ "Cannot find fixPoint when applying to value: " ++ show v --Just in case of unexpected behavior. Should never arise.
 
+--Extracts values from a linear combination.
+--TODO May need to be altered, if a fixPoint function can be applied to a combination of lists.
+-- By now, we assume it will return a list of combinations as: 1.list + 0.emptyList
+-- Should be a safe bet, considering the structural recursion requirement.
+extractValue :: E -> Maybe V
+extractValue (Val (Evalue e)) = extractValue e
+extractValue (Val v) = Just v
+extractValue (AlphaVal 0 e) = Nothing
+extractValue (AlphaVal a e) = extractValue e
+extractValue (Combination e1 e2) = case extractValue e1 of --
+                                      Nothing -> extractValue e2
+                                      Just v -> Just v
 
 renameInFixedPoint :: String -> Int -> Iso ->Iso
 renameInFixedPoint f i (Clauses listVE) = let elist = fmap snd listVE
@@ -172,20 +191,11 @@ renameVarP _ p = p
 --
 --
 
---
 
---
---
--- checkIfFixedPoint :: E -> String -> Bool
--- checkIfFixedPoint (Val v) _ = True
--- checkIfFixedPoint (LetE p (IsoVar g) p2 e) f = if g==f then False
---                                                else checkIfFixedPoint e f
--- checkIfFixedPoint (Combination e1 e2) f = (checkIfFixedPoint e1 f) && checkIfFixedPoint e2 f
--- checkIfFixedPoint (AlphaVal alpha e) f = checkIfFixedPoint e f
 replace::  Term -> Sigma -> V
 replace (EmptyTerm) sig= EmptyV
 replace (XTerm x) sig  = case lookup (x) sig of
-                          Nothing -> error "Did not find Variable" --This is wrong!
+                          Nothing -> error $ "Did not find VariableTerm: " ++ show x ++ "in context: " ++ show sig--This is wrong!
                           Just v -> v
 replace (InjLt v) sig  = InjL $ replace v sig
 replace (InjRt v) sig  = InjR $ replace v sig
@@ -194,7 +204,7 @@ replace (PairTerm v1 v2) sig  = PairV (replace v1 sig) (replace v2 sig)
 
 replaceV:: V -> Sigma ->V
 replaceV (Xval x) sig = case lookup (x) sig of
-                          Nothing -> error "Did not find Variable" --This is wrong!
+                          Nothing -> error $ "Did not find Variable: " ++ show x ++ " in context: " ++ show sig--This is wrong!
                           Just v -> debug ("Value: " ++ show v ++ "\n------------\n")
                                       v
 replaceV (PairV v1 v2) sig = PairV (replaceV v1 sig) (replaceV v2 sig)
@@ -229,9 +239,15 @@ reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with context: " ++ 
                           replaceV v sigma
 reduceE sigma (Combination e1 e2) = debug("Combination...")
                                      Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
+reduceE sigma (AlphaVal 0 e) = Evalue $ AlphaVal 0 e --AS per algebraic rules, if alpha is 0 the expression is void, so we don't evaluate it
 reduceE sigma (AlphaVal alpha e) = Evalue $ AlphaVal alpha $ Val $ reduceE sigma e
 --reduceE sigma e = debug("No evaluation for: " ++ show e)
 --                    Evalue e
+
+
+reduceLinearE :: Alpha -> Sigma -> E -> V
+reduceLinearE 0 sig e = Evalue $ AlphaVal 0 (Val $ bottomValue e)
+reduceLinearE a sig e = reduceE sig e
 
 isoReducing :: Iso -> Iso
 isoReducing (App (Lambda f omega) (App omega2 omega3)) = case substitution f omega2 omega of
@@ -298,16 +314,27 @@ matchClauses (ve:list) v i = let sig =  matching [] (fst ve) v
                                     Nothing    -> debug("Can't match pattern: " ++ show (fst ve) ++ " with value:" ++ show v)
                                                       matchClauses list v $ i+1
 
-
+-- Applies pattern-matching to all values in a linear combination,
+-- generating the sum Wi by combining the results. Original values amplitudes are joined with the resulting ones.
 matchLinearCombinations :: [(V,E)] -> E -> Int -> Either [Char] V
 matchLinearCombinations ve e i = let e' = algebraicProperties e
                                      vlist = grabValuesFromCombinations e'
                                      (alphas,vs) = listsFromPairs vlist
                                      sigmas = [matchClauses ve (v) 0 | v <- vs]
-                                     wi = [reduceE (fst s) (snd $ ve !! (snd s)) | s <- sigmas]
-                                     summs = sumWi alphas wi
-                                     result = Evalue $! algebraicProperties summs
-                                     in Right result
+                                     in if checkSigmas sigmas (length ve) then
+                                          let
+                                            wi = [reduceLinearE a (fst s) (snd $ ve !! (snd s)) | s <- sigmas | a <- alphas]
+                                            summs = sumWi alphas wi
+                                            result = Evalue $! algebraicProperties summs
+                                            in Right result
+                                        else error $ "Pattern-matching failed for valueSet: " ++ show vs ++ "  with sigmas: " ++ show sigmas
+
+
+checkSigmas :: [(Sigma,Int)] -> Int -> Bool
+checkSigmas [] _ = True
+checkSigmas (s:sigmas) i = if i <= snd s then False
+                            else checkSigmas sigmas i
+
 
 sumWi :: [Alpha] -> [V] -> E
 sumWi (a:[])( (Evalue e): []) = case e of
@@ -321,13 +348,14 @@ sumWi (a:alphas)( (Evalue e): vlist) = case e of
 
 --AlphaVal alpha (Comb alphatt alphaff)
 
-
+--Extracts Alphas and Values from a linear Combination
 grabValuesFromCombinations :: E -> [(Alpha,V)]
 grabValuesFromCombinations (Combination e1 e2) = grabValuesFromCombinations e1 ++ grabValuesFromCombinations e2
 grabValuesFromCombinations (AlphaVal a (Val v)) = [(a,v)]
 -- grabValuesFromCombinations (AlphaVal a e) = [(a,v)] where v = grabValuesFromCombinations e
 
-
+--Implements the algebraic properties for linear combination.
+--By choice, the properties (1 . e = e) and (0.e = 0) are omitted, being relevant only to our syntax
 algebraicProperties :: E -> E
 algebraicProperties (AlphaVal a (Combination e1 e2)) = Combination e1' e2'
                                                         where e1' = algebraicProperties (AlphaVal a e1)
@@ -367,7 +395,8 @@ pairAlphasWithValues :: E -> [(Alpha, E)]
 pairAlphasWithValues (AlphaVal a e) = (a,e) : []
 pairAlphasWithValues (Combination e1 e2) = pairAlphasWithValues e1 ++ pairAlphasWithValues e2
 pairAlphasWithValues (Val (Evalue e)) = pairAlphasWithValues e --Casting a Value back to an ExtendedVal
-pairAlphasWithValues e = error $ "Botched this: " ++ show e
+pairAlphasWithValues (Val v) = pairAlphasWithValues (AlphaVal (1:+0) (Val v)) --
+pairAlphasWithValues e = error $ "Something went wrong (pairingAlphas): " ++ show e
 
 
 --Remake the original combination (Combination e1 (Combination e2 e3)) after applying the algebraicProperties.
@@ -462,8 +491,8 @@ invertType (Comp a b t) = Comp b a (invertType t)
 invertIso :: Iso -> Iso
 invertIso (IsoVar f) = IsoVar $ f ++ "'"
 invertIso (App omega1 omega2) = App (invertIso omega1) (invertIso omega1)
-invertIso (Lambda f omega) = Lambda (f++"'") (invertIso omega)
-invertIso (Fixpoint f omega) = Fixpoint (f++"'") (invertIso omega)
+invertIso (Lambda f omega) = Lambda (f ++ "'") (invertIso omega)
+invertIso (Fixpoint f omega) = Fixpoint (f ++ "'") (invertIso omega)
 invertIso (Clauses listVE) = Clauses $ invertCL listVE
 
 
@@ -476,7 +505,7 @@ invertClauses (ve:listVE) = let e' = invertExtendedValue $ snd ve
 invertExtendedValue :: E -> E
 invertExtendedValue (LetE p1 omega p2 e) = let omega' = invertIso omega in
                                                case invertExtendedValue e of
-                                                (LetE p1' omega' p2' e') -> LetE p1' omega' p2' thisLet
+                                                (LetE p1' omega'' p2' e') -> LetE p1' omega'' p2' thisLet
                                                       where thisLet = LetE p2 omega' p1 e'
                                                 otherwise -> LetE p2 omega' p1 $ invertExtendedValue e
 invertExtendedValue e = e
