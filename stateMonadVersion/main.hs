@@ -89,28 +89,28 @@ testCnot = let  (cnot,isoType) = cnotIso
                   ++ "\n\nInverse:\n\t " ++ show invCnot
 
 
-testTerms :: String
-testTerms = let  bool = Sum One One
-                 empty = EmptyTerm
-                 x = XTerm "x"
-                 y = XTerm "y"
-                 injL = InjLt x
-                 injR = InjRt y
-                 xy = PairTerm x y
-                 iso = IsoVar "exampleIso"
-                 omega = Omega iso y
-                 letT = Let (Xprod "x") omega x
-                 comb = CombTerms x y
-                 alpha1 = AlphaTerm (1:+0) x
-                 alpha2 = AlphaTerm (1:+0) y
-                 comb2 = CombTerms alpha1 alpha2
-                 isoType = Iso bool bool
-                 delta = [("y",bool)]
-                 delta2 = [("y",bool),("x",bool)]
-                 psi = [("exampleIso",isoType)]
-                 in  (show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
-                        ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
-                          ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
+-- testTerms :: String
+-- testTerms = let  bool = Sum One One
+--                  empty = EmptyTerm
+--                  x = XTerm "x"
+--                  y = XTerm "y"
+--                  injL = InjLt x
+--                  injR = InjRt y
+--                  xy = PairTerm x y
+--                  iso = IsoVar "exampleIso"
+--                  omega = Omega iso y
+--                  letT = Let (Xprod "x") omega x
+--                  comb = CombTerms x y
+--                  alpha1 = AlphaTerm (1:+0) x
+--                  alpha2 = AlphaTerm (1:+0) y
+--                  comb2 = CombTerms alpha1 alpha2
+--                  isoType = Iso bool bool
+--                  delta = [("y",bool)]
+--                  delta2 = [("y",bool),("x",bool)]
+--                  psi = [("exampleIso",isoType)]
+--                  in  (show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
+--                         ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
+--                           ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
 
 testNotEval :: String
 testNotEval = let  bool = Sum One One
@@ -160,7 +160,7 @@ main = do
           "map" -> putStr testMap
           "mapAcc" -> putStr testMapAcc
           "cnot" -> putStr testCnot
-          "terms" -> putStr testTerms
+--           "terms" -> putStr testTerms
           "a" -> putStr testNotEval
           "hadHad" -> putStr testHadHad
           "quit" -> exitSuccess
