@@ -31,6 +31,8 @@ On the other hand, the pure version makes manipulating the contexts simpler, sin
 
 This project provides some pre-built examples of function evaluation and typechecking.
 
+In order to us the monadic version: Having **stateMonadVersion** folder as working directory, use the -i ../ flag when compiling the code. (*ghc main.hs -i../*).
+
 All of the pre-built examples can be run by compiling the code (E.g.: ghc main.hs) and running the resulting executable file. A small text menu will be provided for selecting an example to be ran. It can also be ran iteratively via ghci by calling *main* after loading all modules.
 
 Defining extra examples can be quite cumbersome without a parser, but the *Isodefinitons.hs* file coupled with the test functions should provide enough guidelines for the moment.

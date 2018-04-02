@@ -94,6 +94,7 @@ testTerms = let  bool = Sum One One
                  iso = IsoVar "exampleIso"
                  omega = Omega iso y
                  letT = Let (Xprod "x") omega x
+                 letT2 = Let (Xprod "x") omega letT
                  comb = CombTerms x y
                  alpha1 = AlphaTerm (1:+0) x
                  alpha2 = AlphaTerm (1:+0) y
@@ -102,7 +103,7 @@ testTerms = let  bool = Sum One One
                  delta = [("y",bool)]
                  delta2 = [("y",bool),("x",bool)]
                  psi = [("exampleIso",isoType)]
-                 in  (show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
+                 in  (show letT2) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT2 bool) ++ "--- Should this even typecheck?\n"
                         ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
                           ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
 

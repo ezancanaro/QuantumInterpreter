@@ -250,12 +250,12 @@ reduceLinearE 0 sig e = Evalue $ AlphaVal 0 (Val $ bottomValue e)
 reduceLinearE a sig e = reduceE sig e
 
 isoReducing :: Iso -> Iso
-isoReducing (App (Lambda f omega) (App omega2 omega3)) = case substitution f omega2 omega of
+isoReducing (App (Lambda f omega) (App omega2 omega3)) = case substitution [] f omega2 omega of
                                                             Nothing -> debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
                                                                         omega
                                                             Just subs -> debug("\nSubstituted: " ++ show subs)
                                                                           isoReducing (App subs omega3)
-isoReducing (App (Lambda f omega) omega2) = case substitution f omega2 omega of
+isoReducing (App (Lambda f omega) omega2) = case substitution [] f omega2 omega of
                                                 Nothing -> debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
                                                             omega --Should never happen?
                                                 Just subs -> debug("\nSubstituted: " ++ show subs)
@@ -264,14 +264,17 @@ isoReducing (App (App iso1 iso2) iso3) = isoReducing (App (isoReducing (App iso1
 isoReducing iso = error $ "Cannot reduce: " ++ show iso
 
 
-substitution :: String -> Iso ->Iso -> Maybe Iso
-substitution f omega2 (IsoVar f') = if f' == f then Just omega2
-                                    else Nothing
-substitution f omega2 (Lambda g iso) = Just $ Lambda g $ testSubs iso $ substitution f omega2 iso --Need to check if f is freeVariable?
 
-substitution f omega2 (App iso1 iso2) = Just $ App (testSubs iso1 $ substitution f omega2 iso1)
-                                                    (testSubs iso2 $ substitution f omega2 iso2)
-substitution f omega2 (Clauses listVe) = Just $ Clauses $ substitutionInClauses listVe f omega2
+
+substitution :: [String] -> String -> Iso ->Iso -> Maybe Iso
+substitution boundVars f omega2 (IsoVar f') = if f' == f && not (f `elem` boundVars)
+                                              then Just omega2
+                                              else Nothing
+substitution boundVars f omega2 (Lambda g iso) = Just $ Lambda g $ testSubs iso $ substitution (g:boundVars) f omega2 iso --Need to check if f is freeVariable?
+
+substitution boundVars f omega2 (App iso1 iso2) = Just $ App (testSubs iso1 $ substitution boundVars f omega2 iso1)
+                                                    (testSubs iso2 $ substitution boundVars f omega2 iso2)
+substitution boundVars f omega2 (Clauses listVe) = Just $ Clauses $ substitutionInClauses boundVars listVe f omega2
                                         -- The code for substituion on Apps is equivalent to this:
                                         -- let subs1 = substitution f omega2 iso1
                                         --     subs2 = substitution f omega2 iso2
@@ -282,21 +285,21 @@ substitution f omega2 (Clauses listVe) = Just $ Clauses $ substitutionInClauses 
                                         --     Just s1 -> case subs2 of
                                         --                   Nothing -> Just $ App s1 iso2
                                         --                   Just s2 -> Just $ App s1 s2
-substitution f omega2 (Fixpoint g iso) = Just $ Fixpoint g $ testSubs iso $ substitution f omega2 iso
+substitution boundVars f omega2 (Fixpoint g iso) = Just $ Fixpoint g $ testSubs iso $ substitution (g:boundVars) f omega2 iso
 --substitution f omega2 iso = debug ("om2: " ++ show omega2 ++ "is: " ++ show iso)
   --                            Nothing
 
 --Goes through the clauses, substituting isos found in LetExpressions. Returns the substituted clauseList
-substitutionInClauses :: [(V,E)] -> String -> Iso -> [(V,E)]
-substitutionInClauses [] _ _ = []
-substitutionInClauses (e:listE) f omega2 = (fst e, subIsoInLet (snd e) f omega2)
-                                              : substitutionInClauses listE f omega2
+substitutionInClauses :: [String] -> [(V,E)] -> String -> Iso -> [(V,E)]
+substitutionInClauses boundVars [] _ _ = []
+substitutionInClauses boundVars (e:listE) f omega2 = (fst e, subIsoInLet boundVars (snd e) f omega2)
+                                              : substitutionInClauses boundVars listE f omega2
 --Substitutes isos in letExpressions if applicable, otherwise return the expression itself
-subIsoInLet :: E -> String -> Iso -> E
-subIsoInLet (LetE p iso p2 e) f omega2 = LetE p (testSubs iso $ substitution f omega2 iso) p2 $ subIsoInLet e f omega2
-subIsoInLet (Combination e1 e2) f omega2 = Combination (subIsoInLet e1 f omega2) (subIsoInLet e2 f omega2)
-subIsoInLet (AlphaVal alpha e) f omega2 = AlphaVal alpha $ subIsoInLet e f omega2
-subIsoInLet e _ _= e
+subIsoInLet :: [String] -> E -> String -> Iso -> E
+subIsoInLet boundVars (LetE p iso p2 e) f omega2 = LetE p (testSubs iso $ substitution boundVars f omega2 iso) p2 $ subIsoInLet boundVars e f omega2
+subIsoInLet boundVars (Combination e1 e2) f omega2 = Combination (subIsoInLet boundVars e1 f omega2) (subIsoInLet boundVars e2 f omega2)
+subIsoInLet boundVars (AlphaVal alpha e) f omega2 = AlphaVal alpha $ subIsoInLet boundVars e f omega2
+subIsoInLet boundVars e _ _= e
 
 --Checks if substitution has ocurred in an iso. If so, return the resulting substitution.
 --If it hasn's, return the original iso

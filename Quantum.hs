@@ -1,7 +1,7 @@
 module Quantum where
 import AbstractData
 import Utils
-
+--Pure version of the Typechecker
 import Data.Number.CReal
 import Data.Complex
 import Data.List

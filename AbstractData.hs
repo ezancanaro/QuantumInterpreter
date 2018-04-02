@@ -132,7 +132,7 @@ instance Show (Term) where
   show (InjRt t) = "InjR_" ++ show t
   show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
   show (Omega iso t1) = show iso ++ " " ++ show t1
-  show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ "\n\t\tin " ++ show t2
+  show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ "\n\tin " ++ show t2
   show (CombTerms t1 t2) = show t1 ++ " + " ++ show t2
   show (AlphaTerm f t) = "(" ++ show f ++ ")" ++ show t
   show (ValueT v) = "ValueT " ++ show v
