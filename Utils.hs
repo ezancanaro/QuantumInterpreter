@@ -5,8 +5,8 @@ import Data.Complex
 import Data.Number.CReal
 
 --Debugging flag-
-doDebug = False
-          --True -- You honestly should not do it. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
+doDebug = --False
+          True -- You honestly should not do it. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
 
 
 --Making debug statements easier to use
@@ -32,6 +32,19 @@ a2 = (-1/sqrt(2)) :: CReal--fixed precision numbers
 alpha = (a1 :+ 0)
 beta = (a2 :+ 0) -- complex numbers
 -----------------------------------------------
+boolLists :: [Bool] -> Term
+boolLists [] = InjLt EmptyTerm
+boolLists (False:lb) = InjRt $ PairTerm (falseTerm) (boolLists lb)
+boolLists (True:lb) = InjRt $ PairTerm (trueTerm) (boolLists lb)
+
+
+intToPeanoV :: Int -> V
+intToPeanoV 0 = InjL EmptyV
+intToPeanoV x  = InjR $ PairV (InjR EmptyV)  (intToPeanoV $ x-1)
+
+intToPeanoT :: Int -> Term
+intToPeanoT 0 = InjLt EmptyTerm
+intToPeanoT x  = InjRt $ PairTerm (InjRt EmptyTerm) (intToPeanoT $ x-1)
 
 
 listsFromPairs :: [(a,b)] -> ([a],[b])
@@ -45,7 +58,8 @@ wrap (Right val) = val
 
 catchMaybe :: Maybe a -> a
 catchMaybe (Just something) = something
-catchMaybe Nothing = error "Something failed"
+catchMaybe Nothing = error "Failure on a Maybe returning function" -- Not really descriptive of the error, I know.
+                                                    --Should update it to take an extra argument that can help identify the error.
 
 --Returns the bottom value from an Extended Value. (Val(e))
 bottomValue :: E -> V
@@ -54,10 +68,7 @@ bottomValue (LetE p1 iso p2 e) = bottomValue e
 bottomValue (Combination e1 e2) = bottomValue e1
 bottomValue (AlphaVal alpha e) = bottomValue e
 
-boolLists :: [Bool] -> Term
-boolLists [] = InjLt EmptyTerm
-boolLists (False:lb) = InjRt $ PairTerm (falseTerm) (boolLists lb)
-boolLists (True:lb) = InjRt $ PairTerm (trueTerm) (boolLists lb)
+
 
 getLinearAlphas :: E -> [Alpha]
 getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2

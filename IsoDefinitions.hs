@@ -181,3 +181,25 @@ not1 = let  ttTerm = InjRt EmptyTerm
             notIso = Clauses [(ff,e1),(tt,e2)]
             isoType = Iso bool bool
             in (notIso,isoType)
+
+
+-- plus :: (Iso,T) -- This iso will not work because recursion is only defined for lists. Changing the int representation to a list will make it possible.
+-- plus = let zero = intToPeanoV 0
+--            suc = InjR $ PairV (InjR EmptyV) (Xval "s")
+--            p = IsoVar "p"
+--            l = Xval "l"
+--            l' = Xval "l2"
+--            s' = Xval "s2"
+--            v1 = PairV zero l
+--            e1 = Val $ PairV l l
+--            v2 = PairV suc l
+--            l's' = PairP  (Xprod "s2") (Xprod "l2")
+--            pair2 = PairP (Xprod "s") (Xprod "l")
+--            resultVal = Val $ PairV (InjR s') l'
+--            lComb = Combination (AlphaVal (1:+0) e1) (AlphaVal (0+0) resultVal)
+--            lComb2 = Combination (AlphaVal (0:+0) e1) (AlphaVal (1:+0) resultVal)
+--            e2 = LetE l's' p pair2 lComb2
+--            cl = Clauses [(v1,lComb),(v2,e2)]
+--            sumIso = Fixpoint "p" cl
+--            isoType = Iso One One -- What would be the type of an int representation as specified here??
+--            in (sumIso,isoType)

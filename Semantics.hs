@@ -102,10 +102,12 @@ findFixedPoint f i (InjL EmptyV) fix = let fix' = renameInFixedPoint f (i+1) fix
                                            pairNameIso = ((f ++ show i), renameIsoVars i fix')
                                            in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
                                                 [pairNameIso] -- error ("EmptyV")
-findFixedPoint f i (PairV list _) fix = let fix' = renameInFixedPoint f (i+1) fix
-                                            pairNameIso = ((f ++ show i), renameIsoVars i fix')
-                                            in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
-                                                [pairNameIso] -- error ("PAIRV")
+-- findFixedPoint f i (PairV list _) fix = let fix' = renameInFixedPoint f (i+1) fix
+--                                             pairNameIso = ((f ++ show i), renameIsoVars i fix')
+--                                             in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+--                                                 [pairNameIso] -- error ("PAIRV")
+findFixedPoint f i (PairV (InjL v) _) fix = findFixedPoint f i (InjL v) fix
+findFixedPoint f i (PairV (InjR v) _) fix = findFixedPoint f i (InjR v) fix
 --Case of a list with elements -- Need to keep unfolding the iso.
 findFixedPoint f i (InjR (PairV h t)) fix = let fix' = renameInFixedPoint f (i+1) fix
                                                 pairNameIso = ((f ++ show i), renameIsoVars i fix')

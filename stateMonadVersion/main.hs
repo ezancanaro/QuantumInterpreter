@@ -89,28 +89,28 @@ testCnot = let  (cnot,isoType) = cnotIso
                   ++ "\n\nInverse:\n\t " ++ show invCnot
 
 
-testTerms :: String
-testTerms = let  bool = Sum One One
-                 empty = EmptyTerm
-                 x = XTerm "x"
-                 y = XTerm "y"
-                 injL = InjLt x
-                 injR = InjRt y
-                 xy = PairTerm x y
-                 iso = IsoVar "exampleIso"
-                 omega = Omega iso y
-                 letT = Let (Xprod "x") omega x
-                 comb = CombTerms x y
-                 alpha1 = AlphaTerm (1:+0) x
-                 alpha2 = AlphaTerm (1:+0) y
-                 comb2 = CombTerms alpha1 alpha2
-                 isoType = Iso bool bool
-                 delta = [("y",bool)]
-                 delta2 = [("y",bool),("x",bool)]
-                 psi = [("exampleIso",isoType)]
-                 in  (show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
-                        ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
-                          ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
+-- testTerms :: String
+-- testTerms = let  bool = Sum One One
+--                  empty = EmptyTerm
+--                  x = XTerm "x"
+--                  y = XTerm "y"
+--                  injL = InjLt x
+--                  injR = InjRt y
+--                  xy = PairTerm x y
+--                  iso = IsoVar "exampleIso"
+--                  omega = Omega iso y
+--                  letT = Let (Xprod "x") omega x
+--                  comb = CombTerms x y
+--                  alpha1 = AlphaTerm (1:+0) x
+--                  alpha2 = AlphaTerm (1:+0) y
+--                  comb2 = CombTerms alpha1 alpha2
+--                  isoType = Iso bool bool
+--                  delta = [("y",bool)]
+--                  delta2 = [("y",bool),("x",bool)]
+--                  psi = [("exampleIso",isoType)]
+--                  in  (show letT) ++ " : " ++ show (wrap $ mytermTypeCheck delta psi letT bool) ++ "\n"
+--                         ++ (show comb) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb bool) ++ "\n"
+--                           ++ (show comb2) ++ ": " ++ show (wrap $ mytermTypeCheck delta2 psi comb2 bool) ++ "\n"
 
 testNotEval :: String
 testNotEval = let  bool = Sum One One
@@ -141,6 +141,17 @@ testHadHad =  let (had,isoType) = hadIso
                     ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
 
 
+testPlus :: String
+testPlus = let (plusIso,isoType) = plus
+               delta = []
+               psi = []
+               x = intToPeanoT 2
+               y = intToPeanoT 3
+               xy = PairTerm x y
+               check = Omega plusIso xy
+               in "Plus:: " ++ show plusIso ++ "\n with args: " ++ show xy
+                    ++"\n\n\n Evals: " ++ show (applicativeContext check) -- Will work because recursion is only defined on lists
+
 combinationTest :: String
 combinationTest = let a1 = alpha * alpha
                       a2 = beta * alpha
@@ -152,7 +163,7 @@ combinationTest = let a1 = alpha * alpha
                    in show (addAllCombinations list)
 
 main = do
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms --Input quit to stop.\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms |  --Input quit to stop.\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -160,11 +171,13 @@ main = do
           "map" -> putStr testMap
           "mapAcc" -> putStr testMapAcc
           "cnot" -> putStr testCnot
-          "terms" -> putStr testTerms
+          -- "terms" -> putStr testTerms
           "a" -> putStr testNotEval
           "hadHad" -> putStr testHadHad
+          -- "plus" ->   putStr testPlus
           "quit" -> exitSuccess
           otherwise -> putStr "That function is not defined!!"
         putStr "\n\n\n"
+
         --putStr $ "\n\n\n\n  CombinationTest:  " ++ combinationTest
         main
