@@ -171,11 +171,7 @@ main = do
           "map" -> putStr testMap
           "mapAcc" -> putStr testMapAcc
           "cnot" -> putStr testCnot
-<<<<<<< HEAD
-          -- "terms" -> putStr testTerms
-=======
 --           "terms" -> putStr testTerms
->>>>>>> aafc48b18c76db599b387918068a09cc63377d65
           "a" -> putStr testNotEval
           "hadHad" -> putStr testHadHad
           -- "plus" ->   putStr testPlus

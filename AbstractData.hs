@@ -101,10 +101,10 @@ instance Show (V) where
   show (EmptyV) = "()"
   show (Xval s) = s
   show (InjL v) = "InjL_" ++ show v
-  show (InjR (PairV v1 v2)) = "InjR_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
+  --show (InjR (PairV v1 v2)) = "InjR_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
   show (InjR v) = "InjR_" ++ show v
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
-  show (Evalue e) = show e
+  show (Evalue e) =  show e
 
 instance Show (E) where
   show (Val v) = show v
@@ -114,10 +114,19 @@ instance Show (E) where
       | show v2 == "" = show v1
       | otherwise = show v1 ++ "+" ++ show v2
   show (AlphaVal alpha e)
-      | alpha == 0 = ""
-      | alpha == 1 = "1~" ++ show e
-      | imagPart alpha == 0 = show (realPart alpha) ++ "~" ++ show e
+      | alpha == 0 = "0"
+      | alpha == 1 = "" ++ show e
+      | imagPart alpha == 0 = capDigitsOnRealNumber 3 alpha ++ "~" ++ show e
       | otherwise = show (alpha) ++ "~" ++ show e
+
+
+capDigitsOnRealNumber :: Int -> Alpha -> String
+capDigitsOnRealNumber 0 (a) = if imagPart a == 0
+                              then show (realPart a)
+                              else "(" ++ show (realPart a) ++ ":+" ++ show (imagPart a) ++ ")"
+capDigitsOnRealNumber i (a) = if imagPart a == 0
+                              then showCReal i (realPart a)
+                              else "(" ++ showCReal i (realPart a) ++ ":+" ++ show (imagPart a) ++ ")"
 
 instance Show (P) where
   show (EmptyP) = "()"
@@ -135,7 +144,7 @@ instance Show (Term) where
   show (Let p t1 t2) = "let " ++ show p ++ "=" ++ show t1 ++ "\n\tin " ++ show t2
   show (CombTerms t1 t2) = show t1 ++ " + " ++ show t2
   show (AlphaTerm f t) = "(" ++ show f ++ ")" ++ show t
-  show (ValueT v) = "ValueT " ++ show v
+  show (ValueT v) =  show v
 
 
 instance Show (Iso) where

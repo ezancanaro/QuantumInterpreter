@@ -37,7 +37,7 @@ testMap =
       (had,_) = hadIso
       littleList = InjRt $ PairTerm (falseTerm)  (InjLt EmptyTerm)
       notSoLittleList = InjRt $ PairTerm (falseTerm) littleList
-      list3 = boolLists [True,True,False,False]
+      list3 = boolLists [True,True,False]
       check = Omega (App map' had) (littleList)
       check2 = Omega (App map' had) (notSoLittleList)
       check3 = Omega (App map' had) list3
@@ -46,10 +46,12 @@ testMap =
       result = ValueT $ applicativeContext check3
       check' = Omega (App inverseMap had) result
       result' = applicativeContext check'
+      curious = tensorProductRep $ applicativeContext check3
       in ( "\n Has Type: " ++ show (typeCheck delta psi map' isoType))
         ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show result
           ++ "\n\n Inverse Map: " ++ show inverseMap
             ++ "\n\n Evals to: " ++ show result'
+              ++ "\n\n Curiously:: " ++ show curious
 
 testHad :: String
 testHad = let (had,isoType) = hadIso
@@ -146,8 +148,278 @@ combinationTest = let a1 = alpha * alpha
                       list = [p1,p2,p3,p4]
                    in show (addAllCombinations list)
 
+
+tester:: String
+tester = let eTT = Val tt --ExtendedValue true
+             eFF = Val ff --ExtendedValue false
+             a = (2:+0)
+             b = ((-2):+0)
+             e1 = Combination (AlphaVal a eTT) (AlphaVal a eFF) -- Clause 1
+             e2 = Combination (AlphaVal a eTT) (AlphaVal a eFF)  -- Clause 2
+             e3 = Combination (AlphaVal a eTT) (AlphaVal b eFF)
+             pair = PairV (Evalue e1) (Evalue e2)
+             pair2 = PairV (Evalue e3) pair
+             tensor = tensorProductRep pair
+             tensor2 = tensorProductRep pair2
+             (cnot,_) = simpleCnot
+             (mynot,_) = not1
+             (myIf,ifType) = if1
+             delta = []
+             psi = []
+             check = Omega (App cnot mynot) (ValueT pair)
+             types = grabPatternTypesFromAnnotation (myIf,ifType)
+             in --"Cnot:: " ++ show cnot ++ "  " ++ show pair ++  "\n\n " ++ show (applicativeContext check) ++ "\n\n" ++ show types
+                "Tensor product of: " ++ show pair2 ++ "\n\t " ++ show tensor2
+testOracle :: String
+testOracle = let eTT = Val tt --ExtendedValue true
+                 eFF = Val ff --ExtendedValue false
+                 e1 = Combination (AlphaVal alpha eTT) (AlphaVal alpha eFF)
+                 e2 = Combination (AlphaVal alpha eTT) (AlphaVal beta eFF)
+                 pair = PairV (Evalue e1) (tt)
+                 p1 = Combination (AlphaVal beta eTT) (AlphaVal alpha eFF)
+                 pairTest = PairV (Evalue p1) (Evalue e2)
+                 (oracle,_) = oracle2
+                 (mynot,_) = not1
+                 check = Omega (App oracle mynot) (ValueT pair)
+                 result = applicativeContext check
+                 check2 = Omega (App oracle mynot) (ValueT result)
+                 result2 = applicativeContext check2
+                -- test = tensorProductRepresentation $ Val result
+                 deutschJozsa = PairV (Evalue e1) (Evalue e2)
+                 checkDeutschJozsa = Omega (App oracle mynot) (ValueT deutschJozsa)
+                 result3 = applicativeContext checkDeutschJozsa
+                 (had1in2,_) = hadOneOfTwo
+                 (hadTensID,hadTIdType) = hadTensorId
+                 check4 = Omega hadTensID (ValueT result3)
+                 check5 = Omega hadTensID (ValueT pairTest)
+                 result4 = applicativeContext check4
+                 result5 = applicativeContext check5
+                 tensor4 = tensorProductRep result4
+                 (myId,_) = idIso
+                 (cst,_) = constant
+
+                 checkWithID = Omega (App oracle cst) (ValueT deutschJozsa)
+                 resultID = applicativeContext checkWithID
+                 withIDstep2 = Omega had1in2 (ValueT resultID)
+                 resultID2 = applicativeContext withIDstep2
+
+                 checkNew = Omega hadTensID (ValueT pairTest)
+                 resultNew = applicativeContext checkNew
+
+                 -- te = equivalentStates (Val resultNew)
+                 -- te' = tensorProductRepresentation te
+
+                 in "2qubtis Oracle, with f(x) being NOT x::\n " ++ show oracle ++ "\t" ++ show pair ++ "\n\n Evalued to:\n\t"
+                      ++ show (result)
+                        -- ++ "\n\nTeste:: " ++ show test
+                         ++ "\n\n   Applied again to:" ++ show result ++ " \n\n\t" ++ show result2
+                          ++ "DeutschJosza first-step:: " ++ show deutschJozsa ++ "\n\n\t" ++ show result3
+                            ++ "\n\nApplying Had to x:\n" ++ show result4
+                              -- ++ "\n\n TensorRep : " ++ show tensor4
+                              ++ "\n-------------------------------\nApplying Had to the first qubit in " ++ show pairTest
+                                ++ " :\n" ++ show result5
+                                  -- ++ "\n-----------------------------------------\n"
+                                  --   ++ "Applying step1-DeutschJosza with ID results in:: \n" ++ show resultID
+                                  --     ++ " \n\nThen step2: \n" ++ show resultID2
+                                            ++ "_____\n\nUsing hadTensorId:\n" ++ show hadTensID ++ "\n at pair: " ++ show pairTest
+                                              ++ "\n\t\tresults in:\n" ++ show resultNew
+                                              --  ++ "\n\n Equivalent to: " ++ show te ++ "\nwith tensor:\n" ++ show te'
+--Sum -1^f(x) |x>|-> ----->  (beta tt + alpha ff)|->
+-- f(tt)=ff
+--f(ff)=tt
+
+
+
+testGrover :: String
+testGrover = let (gOracle,ty) = simplifiedGroverOracle
+                 (mHad,_) = had5
+                 delta = grabPatternTypesFromAnnotation (gOracle,ty)
+                 myT = typeCheck delta [] gOracle ty
+                 fourBits0 = fl $ buildInt 0 4 'v'
+
+                 initialState = ValueT $ normalizeTuple $ PairV fourBits0 ff
+                -- nT = normalizeTuple $ PairV fourBits0 ff
+                 hadInitial = Omega mHad initialState
+                 preparedState = applicativeContext hadInitial
+                 groverP = Omega gOracle $ ValueT preparedState
+                 oracleResult = applicativeContext groverP
+                 (had45,_) = hadFourOfFive
+                 hadTransf = Omega had45 $ ValueT oracleResult
+
+                 resultHadTransf = applicativeContext hadTransf
+                 (condPhase,_) = conditionalPhaseShift
+                 cond = Omega condPhase $ ValueT resultHadTransf
+                 resultCondPhaseShift = applicativeContext cond
+
+                 (gr3,_) = grover3
+                 (mHad4,_) = had4
+                 bit3 = fl $ buildInt 0 3 'v'
+                 initialSt3 = ValueT $ normalizeTuple $ PairV bit3 ff
+                 hadIn4 = Omega mHad4 initialSt3
+                 preparedState4 = applicativeContext hadIn4
+                 groverP3 = Omega gr3 $ ValueT preparedState4
+                 oracleResult3 = applicativeContext groverP3
+                 (had34,_) = hadThreeOfFour
+                 hadTransf3 = Omega had34 $ ValueT oracleResult3
+                 resultHadTransf3 = applicativeContext hadTransf3
+                 (condPhase4,_) = conditionalPhase4
+                 cond3 = Omega condPhase4 $ ValueT resultHadTransf3
+                 resultCondPhaseShift3 = applicativeContext cond3
+                 -- algebra = algebraicProperties $ Val resultCondPhaseShift3
+                 lastStep = Omega had34 $ ValueT resultCondPhaseShift
+                 lastR = applicativeContext lastStep
+
+                 in "simplifiedGrover\n " ++ show gr3-- ++ "\n\n Typechecks to:  " ++ show myT
+                    ++ "\n\nApplied to: " ++ show preparedState4 ++ "\n\n\t Results in:\n" ++ show oracleResult3
+                      ++ "\n\nHad n:: \n" ++ show resultHadTransf3 ++ "\n\n ConditionallyShifted: " ++ show resultCondPhaseShift3
+                        ++ "\nFinal HadN application: \n\n" ++ show lastR
+
+
+myt :: String
+myt = let v1 = AlphaVal alpha $ Val $ PairV tt (Evalue $ AlphaVal (1:+0) ttE)
+          v2 = AlphaVal (1:+0) ttE
+          p = AlphaVal alpha $ Val $ PairV tt (Evalue $ AlphaVal (1:+0) ttE)
+          pp = AlphaVal alpha $ Val $ PairV ff (Evalue $ AlphaVal (1:+0) ttE)
+
+          comb = Combination p pp
+          p1 = AlphaVal alpha $ Val $ PairV tt (Evalue comb)
+          p2 = AlphaVal alpha $ Val $ PairV ff (Evalue comb)
+
+          c = Combination p1 p2
+          f= AlphaVal (0.354:+0) $ Val $ PairV tt (Evalue c)
+          g = AlphaVal ((-0.354):+0) $ Val $ PairV ff (Evalue c)
+
+          c2 = Combination f g
+          tensorC = tensorProductRep (Evalue c2)
+          in "V: " ++ show c2 ++ " \n\n Tensor:\n" ++ show tensorC
+
+nextInt4 :: String
+nextInt4 = let (nextInt,ty) = isoNext
+               (prevInt,tyPrev) = isoPrevious
+               v = fr $ buildInt 2 4 't'
+               check = Omega nextInt v
+               typeC = typeCheck [] [] nextInt ty
+               result = applicativeContext check
+               (signedN,ty2) = nextSigned
+               delta = grabPatternTypesFromAnnotation (signedN,ty2)
+               typess = typeCheck delta [] signedN ty2
+               v2 = PairTerm (ValueT ff) v
+               check2 = Omega (App (App signedN nextInt) prevInt) v2
+               result2 = applicativeContext check2
+               (prSign,tyPSign) = prevSigned
+               deltaPr = grabPatternTypesFromAnnotation (prSign,tyPSign)
+               typessPr = typeCheck delta [] prSign tyPSign
+               checkPr = Omega (App (App prSign nextInt) prevInt) v2
+               resultPr = applicativeContext checkPr
+               in "Next 4bit Int: \n" ++ show nextInt ++ "\n\nTypechecks: "  ++  show typeC
+                    ++ "\n\n Applied to: " ++ show v ++ "::\n" ++ show result
+                      ++ "\nSigned::\n" ++ show signedN ++ "\nType: " ++ show typess
+                        ++ "\n\n Applied to: " ++ show v2 ++ "::\n" ++ show result2
+                          ++ "\n\n Previous Signed:\n" ++ show prSign ++ "\nType: " ++ show typessPr
+                            ++ "\n\n Applied to: " ++ show v2 ++ "::\n" ++ show resultPr
+
+quantumWalk :: String
+quantumWalk = let (walk,walkType) = walkTIso
+                  (nextInt,_) = isoNext
+                  (prevInt,_) = isoPrevious
+                  (nextSign,_) = nextSigned
+                  (prevSign,_) = prevSigned
+                  typeC = typeCheck (grabPatternTypesFromAnnotation (walk,walkType)) [] walk walkType
+
+                  prev = (App (App prevSign nextInt) prevInt)
+                  p = isoReducing prev -- Should not really be needed if we can build the iso this way.
+                  next = (App (App nextSign nextInt) prevInt)
+                  n = isoReducing next
+                  builtIso = App (App walk p) n
+                    --App walk (App prevSign (App nextSign (App nextInt (App prevInt (App nextInt prevInt)))))
+                  v = fr $ buildInt 0 4 't'
+                  v2 = PairTerm (ValueT tt) v
+                  valTest = PairTerm (ValueT tt) v2
+                  check = Omega builtIso valTest
+                  result = applicativeContext check
+
+                  (had,_) = hadIso
+                  (hadIdHP,_) = hadTensorIHp
+                  v3 = applicativeContext (Omega hadIdHP valTest)
+                  --v3 = PairTerm (ValueT x) v2
+                  check3 = Omega builtIso $ ValueT v3
+                  result3 = applicativeContext check3
+                  check4 = Omega hadIdHP $ ValueT result3
+                  result4 = applicativeContext check4
+                  check5 = Omega builtIso $ ValueT result4
+                  result5 = applicativeContext check5
+                  (walki,_) = walkTransform
+                  in "Quantum Walk transformer T: \n" ++ show walk ++ "\nTypechecks to: " ++ show typeC
+                        -- ++ "\n\nApplied to: " ++ show valTest ++ " :: \n\n" ++ show result
+                          ++ "\n\nApplied to: " ++ show v3 ++ " :: \n\n" ++ show result3
+                            ++ "\n\nHad x Ihp :\n" ++ show result4 ++ "\n Applied to T again: \n" ++ show result5
+                              ++ "\n\n" ++ show walki
+
+
+--0.354~<InjL_(),
+      --  0.707~<InjL_(),
+          --  0.707~<InjL_(),1~InjL_()>
+      --      +0.707~<InjR_(),1~InjL_()>
+      -- >
+      -- +0.707~<InjR_(),
+          -- 0.707~<InjL_(),-- 1~InjL_()>
+          -- +0.707~<InjR_(), --1~InjL_()>
+            -- >
+      -- >
+
+testTest :: String
+testTest = let (had23,_) = hadTwoOfThree
+               (had12,_) = hadOneOfTwo
+               p = Combination (AlphaVal alpha ttE) (AlphaVal alpha ffE)
+               p2 = Combination (AlphaVal alpha ttE) (AlphaVal beta ffE)
+               v1 = PairV (Evalue p) (PairV (Evalue p) (Evalue p2))
+               r = applicativeContext $ (Omega had23 $ ValueT v1)
+               v2 = PairV (Evalue p) (Evalue p2)
+               r2 = applicativeContext $ (Omega had12 $ ValueT v2)
+               in "St: " ++ show v1 ++ "\n\n goes TO:: " ++ show r
+                    ++ "\n\n ST2: " ++ show v2 ++ "\n\n goest TO: " ++ show r2
+
+typecheckProgram :: Psi -> [(Iso,T)] -> [String] -> Bool
+typecheckProgram _ [] [] = True
+typecheckProgram psi ((iso,ty):isoDefs) (isoName:names) = let delta = grabPatternTypesFromAnnotation (iso,ty) in
+                                              if typeCheck delta psi iso ty == ty
+                                                then typecheckProgram ((isoName,ty):psi) isoDefs names
+                                                else False
+
+--
+-- startEval :: [(Iso,T)] -> Term -> V
+-- startEval isos startPoint = error "JJJ"
+
+ffff::String
+ffff = let elist = Combination (AlphaVal (1:+0) ttE) (Combination (AlphaVal (0:+0) ttE) (Combination (AlphaVal (0:+0) ttE) $ AlphaVal (0:+0) ttE))
+           in show $ pairAlphasWithValues True elist
+
+gg :: String
+gg = let  (map',isoType) = map1
+          delta = [("h",a),("t",recursiveA)]
+          psi = []
+          (had,_) = hadIso
+          list3 = boolLists [True,True]
+          check3 = Omega (App map' had) list3
+          result = applicativeContext check3
+          aaa = algebraicProperties (Val result)
+          t = tensorProductRep result
+          in "a:" ++ show aaa ++ "\n\n"
+                ++ "Tensor: " ++ show result ++ "\n\n " ++ show t
+
+
+testf :: E -> E -> E
+testf e1 e2
+  | Val v1 <- e1,
+    Val v2 <- e2
+      = Val v1
+  | otherwise = e1
+
+
+-- Loops to allow one to choose a pre-defined example.
 main = do
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms --Input quit to stop.\n ")
+
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms | oracle | grover | next | walk --Input quit to stop.\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -158,8 +430,36 @@ main = do
           "terms" -> putStr testTerms
           "a" -> putStr testNotEval
           "hadHad" -> putStr testHadHad
+          "oracle" -> putStr testOracle
+          "grover" -> putStr testGrover
           "quit" -> exitSuccess
-          otherwise -> putStr "That function is not defined!!"
-        putStr "\n\n\n"
+          "next" -> putStr nextInt4
+          "walk" -> putStr quantumWalk
+          "ffff" -> putStr ffff
+          "gg" -> putStr gg
+          otherwise -> putStr "Undefined Function...\n\n"
+        -- putStr "\n\n\n"
+      --  putStr myt
+        --putStr $ show (fst hadTwoOfThree)
+        putStr "\n\n\n\n"
+
+        --putStr testOracle
         --putStr $ "\n\n\n\n  CombinationTest:  " ++ combinationTest
+      --  putStr $ show $ fst oracleConstant3Bits
         main
+-- 0.5~<0.7071067811865475244008443621048490392848~InjL_()+0.7071067811865475244008443621048490392848~InjR_(),InjR_()>
+-- +-0.5~<0.7071067811865475244008443621048490392848~InjL_()+0.7071067811865475244008443621048490392848~InjR_(),InjL_()>
+-- +0.5~<0.7071067811865475244008443621048490392848~InjL_()+-0.7071067811865475244008443621048490392848~InjR_(),InjL_()>
+-- +-0.5~<0.7071067811865475244008443621048490392848~InjL_()+-0.7071067811865475244008443621048490392848~InjR_(),InjR_()>
+--
+-- -0.5~<0.7071067811865475244008443621048490392848~InjL_()+0.7071067811865475244008443621048490392848~InjR_(),InjL_()>
+-- +0.5~<0.7071067811865475244008443621048490392848~InjL_()+0.7071067811865475244008443621048490392848~InjR_(),InjR_()>
+-- +0.5~<0.7071067811865475244008443621048490392848~InjL_()+-0.7071067811865475244008443621048490392848~InjR_(),InjL_()>
+-- +-0.5~<0.7071067811865475244008443621048490392848~InjL_()+-0.7071067811865475244008443621048490392848~InjR_(),InjR_()>
+
+-- Result of testingOracle::
+--1/2 <|+|, injR()>  - 1/2 <|+|, InjL()> + 1/2<|-|, injL()> - 1/2<|-|,injR()>
+ -- 0.5~<0.7071067811865475244008443621048490392848~InjL_()+0.7071067811865475244008443621048490392848~InjR_(),InjR_()>
+--  +-0.5~<0.7071067811865475244008443621048490392848~InjL_()+0.7071067811865475244008443621048490392848~InjR_(),InjL_()>
+-- +0.5~<0.7071067811865475244008443621048490392848~InjL_()+-0.7071067811865475244008443621048490392848~InjR_(),InjL_()>
+-- +-0.5~<0.7071067811865475244008443621048490392848~InjL_()+-0.7071067811865475244008443621048490392848~InjR_(),InjR_()>

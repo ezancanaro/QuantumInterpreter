@@ -32,10 +32,15 @@ matching sigma (PairV v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
                                                   sig2 = matching sigma v2 w2
                                              in case (sig1,sig2) of
                                                   (Just sigma1,Just sigma2) -> case intersectionTest support sigma1 sigma2 of
-                                                                                    [] -> Just $ sigma1 `union` sigma2
-                                                                                    otherwise -> Nothing
-                                                  _ -> Nothing
-matching _ term val = Nothing
+                                                                                    [] -> debug("Actually succedded")
+                                                                                            Just $ sigma1 `union` sigma2
+                                                                                    otherwise -> debug("Support intersects:" ++ show sigma1 ++ "||" ++ show sigma2)
+                                                                                                    Nothing
+                                                  _ -> debug("Falied to match pair to value::" ++ show (PairV w1 w2))
+                                                         Nothing
+matching sigma term (Evalue (Val v)) = matching sigma term v -- Need this so let expressions work properly.
+matching _ term val = debug ("Tried matching: " ++ show term ++ "//With: " ++ show val)
+                        Nothing
 
 
 
@@ -53,14 +58,12 @@ applicativeContext (ValueT v) = v
 
 reductionRules :: Term -> V
 reductionRules (Let p (ValueT v1) t2) = replace t2 $ catchMaybe $ matching  [] (productVal p) v1
+reductionRules (Omega (Clauses isoDefs) (ValueT (PairV v1 v2))) = if isVlinear (PairV v1 v2) --then error "Undefined"
+                                                                    then reductionRules (Omega (Clauses isoDefs) (ValueT $ Evalue $ tensorProductRep (PairV v1 v2)))
+                                                                    else applyValueToClauses (Clauses isoDefs) (ValueT (PairV v1 v2))
 reductionRules (Omega (Clauses isoDefs) (ValueT (Evalue e))) = debug("Matching eval..")
                                                                   wrap $ matchLinearCombinations isoDefs e 1
-reductionRules (Omega (Clauses isoDefs) (ValueT v)) = let match = matchClauses isoDefs v 0 -- NOT COMPLETED YET
-                                                          i = snd match
-                                                          term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
-                                                                    snd $ isoDefs !! i
-                                                          in debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
-                                                              reduceE (fst match) term
+reductionRules (Omega (Clauses isoDefs) (ValueT v)) = applyValueToClauses (Clauses isoDefs) (ValueT v)
                                       --Iso application: In case iso1 is a lambda, substitute the free-vars for iso2 and then apply term to it
 reductionRules (Omega (App i1 i2) t) = reductionRules (Omega (isoReducing (App i1 i2)) t)
 reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let unfoldedRecursion = debug ("My Val: " ++ show v)
@@ -75,6 +78,120 @@ reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let unfoldedR
 --                                                                           else reductionRules (Omega (isoReducing (Fixpoint f (Clauses isoDefs))) (ValueV t))
 --                                                                                     --not correct
 reductionRules t = error $ "Botched reduction: " ++ show t
+
+--Function to apply simple values to isos
+applyValueToClauses :: Iso -> Term -> V
+applyValueToClauses (Clauses isoDefs) (ValueT v) = let match = matchClauses isoDefs v 0 -- NOT COMPLETED YET
+                                                       i = snd match
+                                                   in if i < length isoDefs
+                                                      then let term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
+                                                                            snd $ isoDefs !! i
+                                                               in debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
+                                                                        reduceE (fst match) term
+                                                      else error $ "Failed to match value: " ++ show v ++ " in clauses:\n" ++ (show $ map fst isoDefs)
+
+-- applyLinearCombinationsInPairs :: Iso -> V -> V
+-- applyLinearCombinationsInPairs (Clauses isoDefs) (PairV v1 v2) = let tensor = Evalue $ tensorProductRep $ PairV v1 v2
+--                                                                  in reductionRules (Clauses isoDefs) tensor
+
+-- <a1 + a2, b1 + b2> -> a1.b1<a1,b1>+a1.b2<a1,b2>+a2.b1<a2,b1>+a2.b2<a2,b2>
+-- <a1+a2, <b1+b2,c1+c2> -><a1+a2, b1.c1<b1,c1> + b1.c2<b1,c2> + b2.c1<b2,c1> + b2.c2<b2,c2>
+--   -> a1.b1.c1<a1,<b1,c1> + a1.b1.c2<a1,<b1,c2> + a1.b2.c1<a1,<b2,c1> + a1.b2.c2<a1,<b2,c2> + a2....
+
+
+-- Taking a value pair containing at least one linear combination and translating it to the tensorProduct representation of states.
+-- This function is needed to allow pattern matching on applications such as: Cnot <0+1/sqrt(2),0+1/sqrt(2)>
+-- The example would be applied in the form: Cnot (1/sqrt(2)*1/sqrt(2)<0,0> + 1/sqrt(2)*1/sqrt(2)<0,1> + 1/sqrt(2)*1/sqrt(2)<1,0> + 1/sqrt(2)*1/sqrt(2)<1,1>)
+tensorProductRep :: V -> E
+tensorProductRep (PairV (Evalue e1) (PairV v1 v2)) = debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
+                                                      tensorProductRep (PairV (Evalue e1) tensorPair)
+                                                        where tensorPair = Evalue $ tensorProductRep $ PairV v1 v2
+-- Defining this case for the sake of completeness, but the interpreter should default to representing tuples as <v,<v2,v3>>.
+-- Need to make this clear when building the parser to allow the <v1,v2,...,vn> syntax.
+tensorProductRep (PairV (PairV v1 v2) (Evalue e1) ) =debug ("tensor2:: " ++ show (PairV (PairV v1 v2) (Evalue e1)) ++ "\n")
+                                                      tensorProductRep (PairV tensorPair (Evalue e1))
+                                                        where tensorPair = Evalue $ tensorProductRep $ PairV v1 v2
+tensorProductRep (PairV (Evalue e1) (Evalue e2)) = let c1 = pairAlphasWithValues True e1
+                                                       c2 = pairAlphasWithValues True e2
+                                                   in debug ("tensor3:: " ++ show (PairV (Evalue e1) (Evalue e2)) ++ "\n")
+                                                        combPairs (pairThem c1 c2)
+tensorProductRep (PairV (Evalue e1) v2) =  let c1 = pairAlphasWithValues True (tensorProductRepresentation e1)
+                                               c2 = [((1:+0), tensorProductRep v2)]
+                                               in  debug ("tensor4:: " ++ show (PairV (Evalue e1) v2) ++ "\n")
+                                                    combPairs (pairThem c1 c2)
+tensorProductRep (PairV v2 (Evalue e1)) =  let c1 = [((1:+0), tensorProductRep v2)]
+                                               c2 = pairAlphasWithValues True (tensorProductRepresentation e1)
+                                               in  debug ("tensor5:: " ++ show (PairV v2 (Evalue e1)) ++ "\n")
+                                                    combPairs (pairThem c1 c2)
+tensorProductRep (Evalue e)= debug ("tensor6:: " ++ show (Evalue e) ++ "\n")
+                                tensorProductRepresentation e
+tensorProductRep (PairV v1 v2) = Val $ PairV v1 v2
+--Treating lists of linear combination:
+tensorProductRep (InjR (PairV v1 v2)) = debug("TensorList " ++ show (PairV v1 v2))
+                                          tensorProductRepresentation $ listCombsToCombLists (InjR $ Evalue $ tensorProductRep (PairV v1 v2))
+tensorProductRep (InjL EmptyV) = Val $ InjL EmptyV
+tensorProductRep v = debug("Tensor Nada")
+                      Val $ v
+--tensorProductRep v = error $ "TensorRep undefined for: " ++ show v
+
+tensorProductRepresentation :: E -> E
+tensorProductRepresentation (Val (Evalue e)) = tensorProductRepresentation e
+tensorProductRepresentation (Val v) = tensorProductRep v
+tensorProductRepresentation (AlphaVal a (Val (PairV v1 v2))) = algebraicProperties $ AlphaVal a (tensorProductRep $ PairV v1 v2)
+tensorProductRepresentation (AlphaVal a e) = AlphaVal a (tensorProductRepresentation e) -- No need to go deeper
+tensorProductRepresentation (Combination e1 e2) =  Combination (tensorProductRepresentation e1) (tensorProductRepresentation e2)
+tensorProductRepresentation e = error $ "Undefined for: " ++ show e
+
+listCombsToCombLists :: V -> E
+listCombsToCombLists (InjR (Evalue c))
+  | Combination (AlphaVal a1 e1) (AlphaVal a2 e2) <- c = Combination (AlphaVal a1 (Val $ InjR $ Evalue e1)) ((AlphaVal a2 (Val $ InjR $ Evalue e2)))
+
+  ---0.707~<InjR_(),1~InjL_()>+0.707~<InjR_(),1~InjR_()> == <injR(),-0.707~InjL()+0.707InjR()>
+  --Not really a needed function, but it could be usefull for presenting results
+-- equivalentStates :: E -> E
+-- equivalentStates (Combination (AlphaVal a1 e1) (AlphaVal a2 e2))
+--   | Val (PairV v1 v2) <- e1,
+--     Val (PairV v3 v4) <- e2,
+--     v1 == v3
+--       =   let av2 = AlphaVal a1 (Val v2)
+--               av4 = AlphaVal a2 (Val v4)
+--               in Val $ PairV v1 (Evalue $ Combination av2 av4)
+--   | Val (PairV v1 v2) <- e1,
+--     Val (PairV v3 v4) <- e2,
+--     v2 == v4
+--       =   let av1 = AlphaVal a1 (Val v1)
+--               av3 = AlphaVal a2 (Val v3)
+--               in Val $ PairV (Evalue $ Combination av1 av3) v2
+--   | otherwise = Combination (AlphaVal a1 e1) (AlphaVal a2 e2)
+-- equivalentStates (Val (Evalue e)) = equivalentStates e
+-- equivalentStates (AlphaVal a e) = error $ "Why is it here? " ++ show e
+-- equivalentStates (Combination (AlphaVal 0 e1) e2) = equivalentStates e2
+-- equivalentStates (Combination e1 (AlphaVal 0 e2)) = equivalentStates e1
+-- equivalentStates (Combination e1 e2)
+--   | Val (Evalue e) <- e1 = equivalentStates $ Combination e e2
+--   | Val (Evalue e) <- e2 = equivalentStates $ Combination e1 e
+--   | otherwise = error $ "I can't really understand it." ++ show (Combination e1 e2)
+-- equivalentStates e = error $ "Trouble applying EquivalentStates to: " ++ show e
+
+
+
+pairThem :: [(Alpha,E)] -> [(Alpha,E)] -> [((Alpha,E),(Alpha,E))]
+pairThem (x)(y) = [ (p1,p2) | p1<-x, p2<-y ]
+
+combPairs :: [((Alpha,E),(Alpha,E))] -> E
+combPairs (((a1,e1),(a2,e2)):[]) = AlphaVal (a1*a2) (Val (PairV (Evalue e1) (Evalue e2)))
+combPairs (((a1,e1),(a2,e2)):list) = Combination comb1 (combPairs list)
+                                    where comb1 = AlphaVal (a1*a2) (Val (PairV (Evalue e1) (Evalue e2)))
+
+isVlinear :: V -> Bool
+isVlinear (InjL v) = isVlinear v
+isVlinear (InjR v) = isVlinear v
+isVlinear (PairV v1 v2) = if not $ isVlinear v1
+                            then isVlinear v2
+                            else True
+isVlinear (Evalue (AlphaVal _ _)) = True
+isVlinear (Evalue (Combination _ _)) = True
+isVlinear _ = False
 
 buildLamFromFix :: String -> V -> Iso -> Iso
 buildLamFromFix f v fix = let listLams = findFixedPoint f 0 v fix
@@ -108,11 +225,14 @@ findFixedPoint f i (InjL EmptyV) fix = let fix' = renameInFixedPoint f (i+1) fix
 --                                                 [pairNameIso] -- error ("PAIRV")
 findFixedPoint f i (PairV (InjL v) _) fix = findFixedPoint f i (InjL v) fix
 findFixedPoint f i (PairV (InjR v) _) fix = findFixedPoint f i (InjR v) fix
+-- --Cases where we apply a tuple of linear combinations on a fix-point iso.
+-- findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ tensorProductRep (PairV (Evalue e) t)) fix
 --Case of a list with elements -- Need to keep unfolding the iso.
 findFixedPoint f i (InjR (PairV h t)) fix = let fix' = renameInFixedPoint f (i+1) fix
                                                 pairNameIso = ((f ++ show i), renameIsoVars i fix')
                                                 in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
                                                     pairNameIso : findFixedPoint f (i+1) t fix
+
 --Special case for applying a Linear Combination to a fixPoint.
 --Since amplitudes are not taken into consideration when pattern-matching values, we ignore them to create the proper unfolded function.
 findFixedPoint f i (Evalue e) fix = findFixedPoint f i v fix
@@ -234,13 +354,19 @@ replaceInP (PairP p1 p2) sig = PairV (replaceInP p1 sig) (replaceInP p2 sig)
 reduceE :: Sigma -> E -> V
 reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
                                         v' = applicativeContext (Omega iso (ValueT v))
-                                        sig2 = catchMaybe $ matching sigma (productVal p) v'
+                                        sig2 = debug("Pair: " ++ show p ++ "  Value:" ++ show v')
+                                                catchMaybe $ matching sigma (productVal p) v'
                                   in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
                                       reduceE sig2 e
 reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with context: " ++ show sigma)
                           replaceV v sigma
-reduceE sigma (Combination e1 e2) = debug("Combination...")
-                                     Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
+reduceE sigma (Combination e1 e2)
+  | AlphaVal a1 e' <- e1,
+    a1 == 0 = (reduceE sigma e2) --Trimming the zeroes
+  | AlphaVal a2 e' <- e2,
+    a2 == 0 = (reduceE sigma e1)
+  | otherwise = debug("Combination...")
+                  Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
 reduceE sigma (AlphaVal 0 e) = Evalue $ AlphaVal 0 e --AS per algebraic rules, if alpha is 0 the expression is void, so we don't evaluate it
 reduceE sigma (AlphaVal alpha e) = Evalue $ AlphaVal alpha $ Val $ reduceE sigma e
 --reduceE sigma e = debug("No evaluation for: " ++ show e)
@@ -263,6 +389,12 @@ isoReducing (App (Lambda f omega) omega2) = case substitution [] f omega2 omega 
                                                 Just subs -> debug("\nSubstituted: " ++ show subs)
                                                               subs
 isoReducing (App (App iso1 iso2) iso3) = isoReducing (App (isoReducing (App iso1 iso2)) iso3)
+-- Does the language allow applications such as (iso1 (iso2 iso3)), where iso1 and iso2 are both higher order isos?? Wasn't really clear
+-- If so, need to modify this function to allow for proper reducing of these.
+-- Current implementation stops reducing when all isoVars from iso1 have been substituted.
+--isoReducing (App iso (App iso2 iso3)) = isoReducing (App iso $ isoReducing (App iso2 iso3))
+--isoReducing ()
+--isoReducing (App (Clauses c) iso2) = error "Hey!"
 isoReducing iso = error $ "Cannot reduce: " ++ show iso
 
 
@@ -322,17 +454,30 @@ matchClauses (ve:list) v i = let sig =  matching [] (fst ve) v
 -- Applies pattern-matching to all values in a linear combination,
 -- generating the sum Wi by combining the results. Original values amplitudes are joined with the resulting ones.
 matchLinearCombinations :: [(V,E)] -> E -> Int -> Either [Char] V
-matchLinearCombinations ve e i = let e' = algebraicProperties e
-                                     vlist = grabValuesFromCombinations e'
+matchLinearCombinations ve e i = let --e' = algebraicProperties e -- IF we are doing the tensor rep, there's no need to apply the properties here.
+                                     tensorE = tensorProductRepresentation e -- For consistency. Will do nothing to a single qubit state, or a state already in tensor representation.
+                                                                              -- This is important on representing a n-qubit state as <q1,<q2,...>>
+                                                                              -- In order for a function application to succeed, all members of a tuple need to be pure values
+                                     vlist = grabValuesFromCombinations tensorE --e'
                                      (alphas,vs) = listsFromPairs vlist
                                      sigmas = [matchClauses ve (v) 0 | v <- vs]
                                      in if checkSigmas sigmas (length ve) then
                                           let
-                                            wi = [reduceLinearE a (fst s) (snd $ ve !! (snd s)) | s <- sigmas | a <- alphas]
+                                            --wi' = debug("List:: " ++ show vs)
+                                              --      [reductionRules (Omega (Clauses ve) (ValueT v)) | v <- vs]
+                                            wi = trimZeroes [reduceLinearE a (fst s) (snd $ ve !! (snd s)) | s <- sigmas | a <- alphas]
                                             summs = sumWi alphas wi
                                             result = Evalue $! algebraicProperties summs
                                             in Right result
                                         else error $ "Pattern-matching failed for valueSet: " ++ show vs ++ "  with sigmas: " ++ show sigmas
+
+trimZeroes :: [V] -> [V]
+trimZeroes [] = []
+trimZeroes ((Evalue e1):vlist)
+  | AlphaVal a e <- e1,
+    a == (0:+0) = trimZeroes vlist
+  | otherwise = (Evalue e1) : (trimZeroes vlist)
+trimZeroes (e:vlist) = e : (trimZeroes vlist)
 
 
 checkSigmas :: [(Sigma,Int)] -> Int -> Bool
@@ -342,37 +487,51 @@ checkSigmas (s:sigmas) i = if i <= snd s then False
 
 
 sumWi :: [Alpha] -> [V] -> E
-sumWi (a:[])( (Evalue e): []) = case e of
-                                  (Val (Evalue e2)) -> algebraicProperties $ AlphaVal a e2
-                                  otherwise         -> algebraicProperties $ AlphaVal a e
-sumWi (a:alphas)( (Evalue e): vlist) = case e of
-                                        (Val (Evalue e2)) -> Combination e' (sumWi alphas vlist)
+sumWi (a:[])( e : []) = case e of
+                                  Evalue (Val (Evalue e2)) -> algebraicProperties $ AlphaVal a e2
+                                  (Evalue e)        -> algebraicProperties $ AlphaVal a e
+                                  otherwise         -> algebraicProperties $ AlphaVal a (Val e)
+sumWi (a:alphas)( e: vlist) = case e of
+                                        Evalue (Val (Evalue e2)) -> Combination e' (sumWi alphas vlist)
                                                                 where e' = algebraicProperties $ AlphaVal a e2
-                                        otherwise         -> Combination e' (sumWi alphas vlist)
+                                        Evalue e                 -> Combination e' (sumWi alphas vlist)
                                                                 where e' = algebraicProperties $ AlphaVal a e
-
+                                        otherwise                -> Combination e' (sumWi alphas vlist)
+                                                                where e' = algebraicProperties $ AlphaVal a (Val e)
+sumWi as es = error $ "Cannot build sum of: " ++ show as ++ "  and: " ++ show es
 --AlphaVal alpha (Comb alphatt alphaff)
 
 --Extracts Alphas and Values from a linear Combination
 grabValuesFromCombinations :: E -> [(Alpha,V)]
 grabValuesFromCombinations (Combination e1 e2) = grabValuesFromCombinations e1 ++ grabValuesFromCombinations e2
 grabValuesFromCombinations (AlphaVal a (Val v)) = [(a,v)]
+grabValuesFromCombinations (Val v) = [((1:+0),v)]
+grabValuesFromCombinations e = error $ "Couldn't extract value from: " ++ show e
 -- grabValuesFromCombinations (AlphaVal a e) = [(a,v)] where v = grabValuesFromCombinations e
 
 --Implements the algebraic properties for linear combination.
---By choice, the properties (1 . e = e) and (0.e = 0) are omitted, being relevant only to our syntax
+--
 algebraicProperties :: E -> E
 algebraicProperties (AlphaVal a (Combination e1 e2)) = Combination e1' e2'
                                                         where e1' = algebraicProperties (AlphaVal a e1)
                                                               e2' = algebraicProperties (AlphaVal a e2)
 algebraicProperties (AlphaVal a (AlphaVal b e)) = AlphaVal (a*b) e
 algebraicProperties (AlphaVal a (Val (Evalue e))) = algebraicProperties (AlphaVal a e)
+algebraicProperties (AlphaVal a (Val v))
+  | a == (1:+0) = Val v
+  | otherwise = AlphaVal a (Val v)
 algebraicProperties (Combination (AlphaVal a e1) (AlphaVal b e2))
+  | a == (0:+0) = AlphaVal b e2
+  | b == (0:+0) = AlphaVal a e1
   | e1 == e2 = AlphaVal (a+b) e1
-  | otherwise = (Combination (AlphaVal a e1) (AlphaVal b e2))
-algebraicProperties (Combination e1 e2) = let e' = pairAlphasWithValues (Combination e1 e2)
+  | otherwise = debug("-,-")
+                  (Combination (AlphaVal a e1) (AlphaVal b e2))
+algebraicProperties (Combination e1 e2) = let e' = pairAlphasWithValues True (Combination e1 e2)
                                             in remakeCombination $ addAllCombinations e'
-algebraicProperties e = error "...."
+algebraicProperties (Val v)
+  | Evalue e <- v = algebraicProperties e
+  | otherwise = Val v
+algebraicProperties e = error $ "Undefined AlgebraicProperties for: " ++ show e
                         --error $ "no can do: " ++ show e
 
 --Combination (a tt) (Combination a ff (combination a tt (Combination b ff)))
@@ -396,12 +555,16 @@ addIfEqual :: (Alpha, E) -> (Alpha, E) -> Maybe (Alpha, E)
 addIfEqual (a1,e1) (a2,e2) = if e1 == e2 then Just (a1+a2,e1)
                              else Nothing
 
-pairAlphasWithValues :: E -> [(Alpha, E)]
-pairAlphasWithValues (AlphaVal a e) = (a,e) : []
-pairAlphasWithValues (Combination e1 e2) = pairAlphasWithValues e1 ++ pairAlphasWithValues e2
-pairAlphasWithValues (Val (Evalue e)) = pairAlphasWithValues e --Casting a Value back to an ExtendedVal
-pairAlphasWithValues (Val v) = pairAlphasWithValues (AlphaVal (1:+0) (Val v)) --
-pairAlphasWithValues e = error $ "Something went wrong (pairingAlphas): " ++ show e
+--Takes a combination and creates a list pairing the amplitudes with their related values.
+-- The bool argument is a flag indicating if zero amplitudes should be ignored.
+pairAlphasWithValues :: Bool -> E -> [(Alpha, E)]
+pairAlphasWithValues b (AlphaVal a e)
+  | a == 0 && b = []
+  | otherwise = (a,e) : []
+pairAlphasWithValues b (Combination e1 e2) = pairAlphasWithValues b e1 ++ pairAlphasWithValues b e2
+pairAlphasWithValues b (Val (Evalue e)) = pairAlphasWithValues b e --Casting a Value back to an ExtendedVal
+pairAlphasWithValues b (Val v) = pairAlphasWithValues b (AlphaVal (1:+0) (Val v)) --
+pairAlphasWithValues b e = error $ "Something went wrong (pairingAlphas): " ++ show e
 
 
 --Remake the original combination (Combination e1 (Combination e2 e3)) after applying the algebraicProperties.
@@ -435,6 +598,13 @@ isVal _ = True
 --                           []  -> matchAll (head list) v
 --                           sig -> Right (sig,snd ve)
 --
+---------------------------------------------------------Program inversion
+-- If we consider 2 well defined isos F and G, and valueTerm x, with program being (F G) x, this function allows the inversion of the whole ting.
+-- For every program, inversion could be done by this function: (F G) x -1 =
+invertTerm :: Term -> Term
+invertTerm (Let p t1 t2) = Let p (invertTerm t1) (invertTerm t2)
+invertTerm (Omega iso t1) = Omega (invertIso iso) (invertTerm t1)
+invertTerm t = t
 
 -------------------------------------- Iso Inversion
 
@@ -447,7 +617,7 @@ invertLinearClauses v (e:elist) i = let (v',e') = swapCombinationVals v e i
 
 
 swapCombinationVals :: [V] -> E -> Int -> (V,E)
-swapCombinationVals vlist (Combination e1 e2) i = let e' =  pairAlphasWithValues (Combination e1 e2)
+swapCombinationVals vlist (Combination e1 e2) i = let e' =  pairAlphasWithValues False (Combination e1 e2)
                                                       swappedE =  swapVals vlist e'
                                                       v' = toValue $ snd $ e' !! i
                                                       in (v',remakeCombination swappedE)
@@ -481,7 +651,7 @@ rebuildEs (e:elist) (alphas:alplist) = rebuild e alphas : rebuildEs elist alplis
 
 rebuild :: E -> [Alpha] -> E
 rebuild (Combination e1 e2) (alist) = remakeCombination a'e
-                                        where a'e = swapAlphas alist $ pairAlphasWithValues (Combination e1 e2)
+                                        where a'e = swapAlphas alist $ pairAlphasWithValues False (Combination e1 e2)
 rebuild (LetE p1 iso p2 e') (alist) = LetE p1 iso p2 $ rebuild e' alist
 rebuild _ _ = error "Right-hand side of clauses Are neither a Combination nor a LetExpression"
 

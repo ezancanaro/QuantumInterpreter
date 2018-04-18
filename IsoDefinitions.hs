@@ -182,11 +182,546 @@ not1 = let  ttTerm = InjRt EmptyTerm
             isoType = Iso bool bool
             in (notIso,isoType)
 
+simpleCnot :: (Iso,T)
+simpleCnot = let v1 = PairV (InjL EmptyV) (Xval "x")
+                 v2 = PairV (InjR EmptyV) (Xval "x")
+                 l2 = (LetE (Xprod "z") (IsoVar "f") (Xprod "x") (Val $ PairV (InjR EmptyV) (Xval "z")))
+                 alpha1 = AlphaVal (1:+0) (Val v1)
+                 alpha2 = AlphaVal (1:+0) l2
+                 e1 = Combination alpha1 (AlphaVal (0:+0) e2)
+                 e2 = Combination (AlphaVal (0:+0) (Val v1)) alpha2
+                 clauses = Clauses [(v1,e1),(v2,e2)]
+                 cnot = Lambda "f" clauses
+                 cnotType = Iso (Prod bool bool) (Prod bool bool)
+                 in (cnot,cnotType)
 
--- plus :: (Iso,T) -- This iso will not work because recursion is only defined for lists. Changing the int representation to a list will make it possible.
--- plus = let zero = intToPeanoV 0
---            suc = InjR $ PairV (InjR EmptyV) (Xval "s")
---            p = IsoVar "p"
+idIso:: (Iso,T)
+idIso = let v1 = tt
+            v2 = ff
+            e1 = Combination (AlphaVal (1:+0) (Val tt)) (AlphaVal (0:+0) (Val ff))
+            e2 = Combination (AlphaVal (0:+0) (Val tt)) (AlphaVal (1:+0) (Val ff))
+            clauses = Clauses [(v1,e1),(v2,e2)]
+            ty = Iso bool bool
+            in (clauses,ty)
+
+constant :: (Iso,T) --Not a valid isomorphism in the language.!!
+constant = let  v1 = tt
+                v2 = ff
+                e1 = Combination (AlphaVal (1:+0) (Val tt)) (AlphaVal (0:+0) (Val tt))
+                e2 = Combination (AlphaVal (0:+0) (Val tt)) (AlphaVal (1:+0) (Val tt))
+                clauses = Clauses [(v1,e1),(v2,e2)]
+                ty = Iso bool bool
+                in (clauses,ty)
+
+-- This iso will only work for a balanced 1 bit function. A constant function on 1 bit would need to be refactored into a 2-bit function to be reversible.
+-- The same can be said for oracles acting on more than 1 bit.
+-- If we cannot express irreversible functions in the language, a new oracle Iso needs to be built for every function f.
+-- The general structure of each oracle would be similar to the iso defined here, but the action of F would be hard-coded instead of the Let-expression.
+oracle2 :: (Iso,T)
+oracle2 = let (cnot,_) = simpleCnot
+              (mynot,_) = not1
+              v1 = PairV (Xval "x") (tt)
+              v2 = PairV (Xval "x") (ff)
+              c1 = Val $ PairV (Xval "x") (Xval "w")
+              c1' = Combination (AlphaVal (1:+0) c1) (AlphaVal (0:+0) c1)
+              c1'' = Combination (AlphaVal (0:+0) c1) (AlphaVal (1:+0) c1)
+              e1 = LetE (Xprod "w") (IsoVar "f") (Xprod "x") c1'
+              e2 = LetE (Xprod "w") mynot (Xprod "z") c1''
+              e2' = LetE (Xprod "z") (IsoVar "f") (Xprod "x") e2
+              clauses = Clauses [(v1,e1),(v2,e2')]
+              oracle2 = Lambda "f" clauses
+              ty = Iso (Prod bool bool) (Prod bool (Prod bool bool)) -- Not the right type!!
+              in (oracle2,ty)
+
+--For instance, an oracle implementing a constant function on 2 bits could be built as::
+oracleConstant3Bits :: (Iso,T)
+oracleConstant3Bits = let
+                          (mynot,_) = not1
+                          v1 = PairV (tt) (PairV tt tt)
+                          v2 = PairV (tt) (PairV ff tt)
+                          v3 = PairV (ff) (PairV tt tt)
+                          v4 = PairV (ff) (PairV ff tt)
+                          v5 = PairV (tt) (PairV tt ff)
+                          v6 = PairV (tt) (PairV ff ff)
+                          v7 = PairV (ff) (PairV tt ff)
+                          v8 = PairV (ff) (PairV ff ff)
+
+                          v1' = Val $ PairV (tt) (PairV tt tt)
+                          v2' = Val $ PairV (tt) (PairV ff tt)
+                          v3' = Val $ PairV (ff) (PairV tt tt)
+                          v4' = Val$ PairV (ff) (PairV ff tt)
+                          v5' = Val$ PairV (tt) (PairV tt ff)
+                          v6' = Val$ PairV (tt) (PairV ff ff)
+                          v7' = Val$ PairV (ff) (PairV tt ff)
+                          v8' = Val$ PairV (ff) (PairV ff ff)
+                          elist =[v1',v2',v3',v4',v5',v6',v7',v8']
+
+                          c1 = buildOneZeroCombs elist 0 0
+                          c2 = buildOneZeroCombs elist 1 0
+                          c3 = buildOneZeroCombs elist 2 0
+                          c4 = buildOneZeroCombs elist 3 0
+                          c5 = buildOneZeroCombs elist 4 0
+                          c6 = buildOneZeroCombs elist 5 0
+                          c7 = buildOneZeroCombs elist 6 0
+                          c8 = buildOneZeroCombs elist 7 0
+
+
+                          clauses = Clauses [(v1,c1),(v2,c2),(v3,c3),(v4,c4),(v5,c5),(v6,c6),(v7,c7),(v8,c8)]
+                          ty = Iso (Prod bool (Prod bool bool)) (Prod bool (Prod bool bool)) -- Not the right type!!
+                          in (clauses,ty)
+
+
+buildOneZeroCombs :: [E] -> Int -> Int -> E
+buildOneZeroCombs (e:[]) i c
+  | i == c =  AlphaVal (1:+0) e
+  | otherwise =  AlphaVal (0:+0) e
+buildOneZeroCombs (e:elist) i c
+  | i == c =  Combination (AlphaVal (1:+0) e) (buildOneZeroCombs elist i $ c+1)
+  | otherwise =  Combination (AlphaVal (0:+0) e) (buildOneZeroCombs elist i $ c+1)
+
+
+hadOneOfTwo :: (Iso,T)
+hadOneOfTwo = let (had,_) = hadIso
+                  (myId,_) = idIso
+                  v1 = PairV (Xval "x") (Xval "y")
+                  e1 = LetE (Xprod "w") (had) (Xprod "x") e2
+                  e2 = LetE (Xprod "z") (myId) (Xprod "y") (Val $ PairV (Xval "w") (Xval "y"))
+                  clauses = Clauses [(v1,e1)]
+                  ty = Iso (Prod bool bool) (Prod bool bool)
+                  in (clauses,ty)
+
+hadTwoOfThree :: (Iso,T)
+hadTwoOfThree = let (had12,_) = hadTensorId
+                    ett = Val tt
+                    eff = Val ff
+
+                    v1 = PairV tt (Xval "y")
+                    v2 = PairV ff (Xval "y")
+                    ePair1 = Val $ PairV tt (Xval "w")
+                    ePair2 = Val $ PairV ff (Xval "w")
+                    comb1 = Combination (AlphaVal alpha ePair1) (AlphaVal alpha ePair2)
+                    comb2 = Combination (AlphaVal alpha ePair1) (AlphaVal beta ePair2)
+                    e1 = LetE (Xprod "w") had12 (Xprod "y") comb1
+                    e2 = LetE (Xprod "w") had12 (Xprod "y") comb2
+                    clau = Clauses [(v1,e1),(v2,e2)]
+                    ty = Iso (Prod bool bool) (Prod bool bool)
+                    in (clau,ty)
+
+hadThreeOfFour :: (Iso,T)
+hadThreeOfFour = let  (had23,_) = hadTwoOfThree
+                      ett = Val tt
+                      eff = Val ff
+
+                      v1 = PairV tt (Xval "y")
+                      v2 = PairV ff (Xval "y")
+                      ePair1 = Val $ PairV tt (Xval "w")
+                      ePair2 = Val $ PairV ff (Xval "w")
+                      comb1 = Combination (AlphaVal alpha ePair1) (AlphaVal alpha ePair2)
+                      comb2 = Combination (AlphaVal alpha ePair1) (AlphaVal beta ePair2)
+                      e1 = LetE (Xprod "w") had23 (Xprod "y") comb1
+                      e2 = LetE (Xprod "w") had23 (Xprod "y") comb2
+                      clau = Clauses [(v1,e1),(v2,e2)]
+                      ty = Iso (Prod bool bool) (Prod bool bool)
+                      in (clau,ty)
+
+hadFourOfFive :: (Iso,T)
+hadFourOfFive = let (had34,_) = hadThreeOfFour
+                    ett = Val tt
+                    eff = Val ff
+
+                    v1 = PairV tt (Xval "y")
+                    v2 = PairV ff (Xval "y")
+                    ePair1 = Val $ PairV tt (Xval "w")
+                    ePair2 = Val $ PairV ff (Xval "w")
+                    comb1 = Combination (AlphaVal alpha ePair1) (AlphaVal alpha ePair2)
+                    comb2 = Combination (AlphaVal alpha ePair1) (AlphaVal beta ePair2)
+                    e1 = LetE (Xprod "w") had34 (Xprod "y") comb1
+                    e2 = LetE (Xprod "w") had34 (Xprod "y") comb2
+                    clau = Clauses [(v1,e1),(v2,e2)]
+                    ty = Iso (Prod bool bool) (Prod bool bool)
+                    in (clau,ty)
+
+
+had4 :: (Iso,T)
+had4 = let  (had1,_) = hadIso
+            b = Xval "b"
+            n = Xval "n"
+            m = Xval "m"
+            k = Xval "k"
+            b' = Xval "b'"
+            n' = Xval "n'"
+            m' = Xval "m'"
+            k' = Xval "k'"
+            v1 = PairV b (PairV n (PairV m k))
+            ef = Val $ PairV b' (PairV n' (PairV m' k'))
+            e1 = LetE (Xprod "b'") had1 (Xprod "b") e2
+            e2 = LetE (Xprod "n'") had1 (Xprod "n") e3
+            e3 = LetE (Xprod "m'") had1 (Xprod "m") e4
+            e4 = LetE (Xprod "k'") had1 (Xprod "k") ef
+            fourBits = Prod bool (Prod bool (Prod bool bool))
+            clauses = Clauses [(v1,e1)]
+            ty = Iso fourBits fourBits
+            in (clauses,ty)
+had5 :: (Iso,T)
+had5 = let  (had1,_) = hadIso
+            b = Xval "b"
+            n = Xval "n"
+            m = Xval "m"
+            k = Xval "k"
+            y = Xval "y"
+            b' = Xval "b'"
+            n' = Xval "n'"
+            m' = Xval "m'"
+            k' = Xval "k'"
+            y' = Xval "y'"
+            v1 = PairV b (PairV n (PairV m (PairV k y)))
+            ef = Val $ PairV b' (PairV n' (PairV m' (PairV k' y')))
+            e1 = LetE (Xprod "b'") had1 (Xprod "b") e2
+            e2 = LetE (Xprod "n'") had1 (Xprod "n") e3
+            e3 = LetE (Xprod "m'") had1 (Xprod "m") e4
+            e4 = LetE (Xprod "k'") had1 (Xprod "k") e5
+            e5 = LetE (Xprod "y'") had1 (Xprod "y") ef
+            fiveBits = Prod (Prod bool (Prod bool (Prod bool bool))) bool
+            clauses = Clauses [(v1,e1)]
+            ty = Iso fiveBits fiveBits
+            in (clauses,ty)
+
+
+hadTensorId :: (Iso,T)
+hadTensorId = let ett = Val tt
+                  eff = Val ff
+                  (myId,_) = idIso
+                  v1 = PairV tt (Xval "y")
+                  v2 = PairV ff (Xval "y")
+                  ePair1 = Val $ PairV tt (Xval "w")
+                  ePair2 = Val $ PairV ff (Xval "w")
+                  comb1 = Combination (AlphaVal alpha ePair1) (AlphaVal alpha ePair2)
+                  comb2 = Combination (AlphaVal alpha ePair1) (AlphaVal beta ePair2)
+                  e1 = LetE (Xprod "w") myId (Xprod "y") comb1
+                  e2 = LetE (Xprod "w") myId (Xprod "y") comb2
+                  clau = Clauses [(v1,e1),(v2,e2)]
+
+                  ty = Iso (Prod bool bool) (Prod bool bool)
+                  in (clau,ty)
+
+
+
+grover3 :: (Iso,T)
+grover3 = let a = Xval "a"
+              b = Xval "b"
+              c = Xval "c"
+              v1 = PairV b (PairV ff (PairV c tt))
+              v2 = PairV b (PairV tt (PairV c tt))
+              v3 = PairV b (PairV ff (PairV c ff))
+              v4 = PairV b (PairV tt (PairV c ff))
+
+              v1' = Val $ PairV b (PairV ff (PairV c ff))
+              v2' = Val $ PairV b (PairV tt (PairV c tt))
+              v3' = Val $ PairV b (PairV ff (PairV c tt))
+              v4' = Val $ PairV b (PairV tt (PairV c ff))
+              elist = [v1',v2',v3',v4']
+              c1 = buildOneZeroCombs elist 0 0
+              c2 = buildOneZeroCombs elist 1 0
+              c3 = buildOneZeroCombs elist 2 0
+              c4 = buildOneZeroCombs elist 3 0
+              clauses = Clauses [(v1,c1),(v2,c2),(v3,c3),(v4,c4)]
+              fourBits = Prod bool (Prod bool (Prod bool bool))
+              ty = Iso fourBits fourBits
+              in (clauses,ty)
+
+conditionalPhase4 :: (Iso,T)
+conditionalPhase4 = let     a = Xval "a"
+                            b = Xval "b"
+                            c = Xval "c"
+                            d = Xval "d"
+                            v1 = PairV tt (PairV tt (PairV tt d))
+                            v2 = PairV a (PairV b (PairV c d))
+                            v1' = AlphaVal ((-1):+0) $ Val v1
+                            v2' = AlphaVal (1:+0) $ Val v2
+                            v1'0 = AlphaVal (0:+0) $ Val v1
+                            v2'0 = AlphaVal (0:+0) $ Val v2
+                            c1 = Combination v1' v2'0
+                            c2 = Combination v1'0 v2'
+                            clauses = Clauses [(v1,c1),(v2,c2)]
+                            fourBits = Prod bool (Prod bool (Prod bool bool))
+                            ty = Iso fourBits fourBits
+                            in (clauses,ty)
+
+-- Oracle that recognizes ints (__1_)  as solutions
+simplifiedGroverOracle :: (Iso,T)
+simplifiedGroverOracle = let a = Xval "a"
+                             b = Xval "b"
+                             c = Xval "c"
+                             v1 = PairV a (PairV b (PairV ff (PairV c tt)))
+                             v2 = PairV a (PairV b (PairV tt (PairV c tt)))
+
+                             v3 = PairV a (PairV b (PairV ff (PairV c ff)))
+                             v4 = PairV a (PairV b (PairV tt (PairV c ff)))
+
+                             v1' = Val $ PairV a (PairV b (PairV ff (PairV c ff)))
+                             v2' = Val $ PairV a (PairV b (PairV tt (PairV c tt)))
+
+                             v3' = Val $ PairV a (PairV b (PairV ff (PairV c tt)))
+                             v4' = Val $ PairV a (PairV b (PairV tt (PairV c ff)))
+
+                             fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                             ty = Iso fiveBits fiveBits
+                             elist = [v1',v2',v3',v4']
+                             c1 = buildOneZeroCombs elist 0 0
+                             c2 = buildOneZeroCombs elist 1 0
+                             c3 = buildOneZeroCombs elist 2 0
+                             c4 = buildOneZeroCombs elist 3 0
+                             clauses = Clauses [(v1,c1),(v2,c2),(v3,c3),(v4,c4)]
+                             in (clauses,ty)
+
+conditionalPhaseShift:: (Iso,T)
+conditionalPhaseShift = let a = Xval "a"
+                            b = Xval "b"
+                            c = Xval "c"
+                            d = Xval "d"
+                            y = Xval "y"
+                            v1 = PairV tt (PairV tt (PairV tt (PairV tt y)))
+                            v2 = PairV a (PairV b (PairV c (PairV d y)))
+                            v1' = AlphaVal ((-1):+0) $ Val v1
+                            v2' = AlphaVal (1:+0) $ Val v2
+                            v1'0 = AlphaVal (0:+0) $ Val v1
+                            v2'0 = AlphaVal (0:+0) $ Val v2
+                            c1 = Combination v1' v2'0
+                            c2 = Combination v1'0 v2'
+                            clauses = Clauses [(v1,c1),(v2,c2)]
+                            fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                            ty = Iso fiveBits fiveBits
+                            in (clauses,ty)
+
+
+p [] [] = []
+p (v:vlist) (c:clist) = (v,c) : p vlist clist
+
+isoNext :: (Iso,T)
+isoNext = let vList = [fl $ buildInt i 4 'v' | i <- [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] ]
+              eList = [Val $ fl $ buildInt i 4 'v' | i <- [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0] ]
+              cList = [buildOneZeroCombs eList i 0 | i <- [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] ]
+              clauses = Clauses (p vList cList)
+              bitsN = (Prod bool (Prod bool (Prod bool bool)))
+              ty = Iso bitsN bitsN
+              in (clauses,ty)
+
+isoPrevious :: (Iso,T)
+isoPrevious = let vList = [fl $ buildInt i 4 'v' | i <- [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] ]
+                  eList = [Val $ fl $ buildInt i 4 'v' | i <- [15,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14] ]
+                  cList = [buildOneZeroCombs eList i 0 | i <- [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] ]
+                  clauses = Clauses (p vList cList)
+                  bitsN = (Prod bool (Prod bool (Prod bool bool)))
+                  ty = Iso bitsN bitsN
+                  in (clauses,ty)
+
+nextSigned :: (Iso,T)
+nextSigned = let zero = fl $ buildInt 0 4 'v'
+                 v1 = PairV ff zero
+                 v2 = PairV ff (Xval "y")
+                 v3 = PairV tt (Xval "y")
+                 a1 = Val $ PairV (tt) (fl $ buildInt 1 4 'v')
+                 a2 = Val $ PairV (ff) (Xval "y'")
+                 a3 = Val $ PairV (tt) (Xval "y'")
+                 alist = [a1,a2,a3]
+                 c1 = buildOneZeroCombs alist 0 0
+                 c2 = buildOneZeroCombs alist 1 0
+                 c3 = buildOneZeroCombs alist 2 0
+                 e1 = c1
+                 e2 = LetE (Xprod "y'") (IsoVar "prev") (Xprod "y") c2
+                 e3 = LetE (Xprod "y'") (IsoVar "next") (Xprod "y") c3
+                 clauses = Clauses [(v1,e1),(v2,e2),(v3,e3)]
+                 iso = Lambda "next" (Lambda "prev" clauses)
+
+                 bitsN = (Prod bool (Prod bool (Prod bool bool)))
+
+                 fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                 ty = Comp bitsN bitsN (Comp bitsN bitsN $ Iso fiveBits fiveBits)
+                 in (iso,ty)
+
+prevSigned:: (Iso,T)
+prevSigned = let zero = fl $ buildInt 0 4 'v'
+                 v1 = PairV tt zero
+                 v2 = PairV tt (Xval "x")
+                 --v3 = PairV ff zero
+                 v3 = PairV ff (Xval "x")
+
+                 a1 = Val $ PairV (ff) (fl $ buildInt 1 4 'v')
+                 a2 = Val $ PairV (tt) (Xval "x'")
+                 --a4 = Val $ PairV (ff) (fl $ buildInt 1 4 'v')
+                 a3 = Val $ PairV (ff) (Xval "x'")
+
+
+                 alist = [a1,a2,a3]
+                 c1 = buildOneZeroCombs alist 0 0
+                 c2 = buildOneZeroCombs alist 1 0
+                 c3 = buildOneZeroCombs alist 2 0
+                 e1 = c1
+                 e2 = LetE (Xprod "x'") (IsoVar "prev") (Xprod "x") c2
+                 e3 = LetE (Xprod "x'") (IsoVar "prev") (Xprod "x") c3
+                 clauses = Clauses [(v1,e1),(v2,e2),(v3,e3)]
+                 iso = Lambda "next" (Lambda "prev" clauses)
+
+                 bitsN = (Prod bool (Prod bool (Prod bool bool)))
+
+                 fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                 ty = Comp bitsN bitsN (Comp bitsN bitsN $ Iso fiveBits fiveBits)
+                 in (iso,ty)
+
+walkTIso :: (Iso,T)
+walkTIso = let v1 = PairV tt (Xval "n")
+               v2 = PairV ff (Xval "n")
+               a1 = Val $ PairV tt (Xval "n'")
+               a2 = Val $ PairV ff (Xval "n'")
+               c1 = buildOneZeroCombs [a1,a2] 0 0
+               c2 = buildOneZeroCombs [a1,a2] 1 0
+               e1 = LetE (Xprod "n'") (IsoVar "prevSigned") (Xprod "n") c1
+               e2 = LetE (Xprod "n'") (IsoVar "nextSigned") (Xprod "n") c2
+               clauses = Clauses [(v1,e1),(v2,e2)]
+               iso = Lambda "prevSigned" (Lambda "nextSigned" clauses)
+               fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+               walkBits = Prod bool fiveBits
+               ty = Iso walkBits walkBits
+               (_,prevTy) = prevSigned
+               (_,nextTy) = nextSigned
+               actualType = Comp fiveBits fiveBits (Comp fiveBits fiveBits ty)
+               in (iso,actualType)
+
+walkTransform :: (Iso,T)
+walkTransform = let (hadTIhp,_) = hadTensorIHp
+                    v1 = Xval "x"
+                    e2 = LetE (Xprod "w") (IsoVar "T") (Xprod "h") (Val $ Xval "w")
+                    e1 = LetE (Xprod "h") (IsoVar "hadXI_hp") (Xprod "x") e2
+                    clauses = Clauses [(v1,e1)]
+                    fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                    walkBits = Prod bool fiveBits
+                    ty = Iso walkBits walkBits
+                    iso = Lambda "T" (Lambda "hadXI_hp" clauses)
+                    in (iso,ty)
+
+id4bits :: (Iso,T)
+id4bits = let v1 = PairV tt (PairV (Xval "x") (PairV (Xval "y") (Xval "z")))
+              v2 = PairV ff (PairV (Xval "x") (PairV (Xval "y") (Xval "z")))
+              e1 = Combination (AlphaVal (1:+0) (Val v1)) (AlphaVal (0:+0) (Val v2))
+              e2 = Combination (AlphaVal (0:+0) (Val v1)) (AlphaVal (1:+0) (Val v2))
+              clauses = Clauses [(v1,e1),(v2,e2)]
+              bitsN = (Prod bool (Prod bool (Prod bool bool)))
+              ty = Iso bitsN bitsN
+              in (clauses,ty)
+
+hadTensorIHp :: (Iso,T)
+hadTensorIHp = let  ett = Val tt
+                    eff = Val ff
+                    (myId,_) = id4bits
+                    v1 = PairV tt (Xval "y")
+                    v2 = PairV ff (Xval "y")
+                    ePair1 = Val $ PairV tt (Xval "w")
+                    ePair2 = Val $ PairV ff (Xval "w")
+                    comb1 = Combination (AlphaVal alpha ePair1) (AlphaVal alpha ePair2)
+                    comb2 = Combination (AlphaVal alpha ePair1) (AlphaVal beta ePair2)
+                    e1 = LetE (Xprod "w") myId (Xprod "y") comb1
+                    e2 = LetE (Xprod "w") myId (Xprod "y") comb2
+                    clau = Clauses [(v1,e1),(v2,e2)]
+
+                    ty = Iso (Prod bool bool) (Prod bool bool)
+                    in (clau,ty)
+
+-- groverExOracle :: (Iso,T)
+-- groverExOracle = let (mynot,_) = not1
+--                      v1 = PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v2 = PairV (PairV tt (PairV tt (PairV tt ff))) tt
+--                      v3 = PairV (PairV tt (PairV tt (PairV ff tt))) tt
+--                      v4 = PairV (PairV tt (PairV tt (PairV ff ff))) tt
+--
+--                      v5 = PairV (PairV tt (PairV ff (PairV tt tt))) tt
+--                      v6 = PairV (PairV tt (PairV ff (PairV tt ff))) tt
+--                      v7 = PairV (PairV tt (PairV ff (PairV ff tt))) tt
+--                      v8 = PairV (PairV tt (PairV ff (PairV ff ff))) tt
+--
+--                      v9 = PairV (PairV ff (PairV tt (PairV tt tt))) tt
+--                      v10 = PairV (PairV ff (PairV tt (PairV tt ff))) tt
+--                      v11 = PairV (PairV ff (PairV tt (PairV ff tt))) tt
+--                      v12 = PairV (PairV ff (PairV tt (PairV ff ff))) tt
+--                      v13 = PairV (PairV ff (PairV ff (PairV tt tt))) tt
+--                      v14 = PairV (PairV ff (PairV ff (PairV tt ff))) tt
+--                      v15 = PairV (PairV ff (PairV ff (PairV ff tt))) tt
+--                      v16 = PairV (PairV ff (PairV ff (PairV ff ff))) tt
+--
+--                      v17 = PairV (PairV tt (PairV tt (PairV tt tt))) ff
+--                      v18 = PairV (PairV tt (PairV tt (PairV tt ff))) ff
+--                      v19 = PairV (PairV tt (PairV tt (PairV ff tt))) ff
+--                      v20 = PairV (PairV tt (PairV tt (PairV ff ff))) ff
+--
+--                      v21 = PairV (PairV tt (PairV ff (PairV tt tt))) ff
+--                      v22 = PairV (PairV tt (PairV ff (PairV tt ff))) ff
+--                      v23 = PairV (PairV tt (PairV ff (PairV ff tt))) ff
+--                      v24 = PairV (PairV tt (PairV ff (PairV ff ff))) ff
+--
+--                      v25 = PairV (PairV ff (PairV tt (PairV tt tt))) ff
+--                      v26 = PairV (PairV ff (PairV tt (PairV tt ff))) ff
+--                      v27 = PairV (PairV ff (PairV tt (PairV ff tt))) ff
+--                      v28 = PairV (PairV ff (PairV tt (PairV ff ff))) ff
+--                      v29 = PairV (PairV ff (PairV ff (PairV tt tt))) ff
+--                      v30 = PairV (PairV ff (PairV ff (PairV tt ff))) ff
+--                      v31 = PairV (PairV ff (PairV ff (PairV ff tt))) ff
+--                      v32 = PairV (PairV ff (PairV ff (PairV ff ff))) ff
+--
+--
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--                      v1' = Val $ PairV (PairV tt (PairV tt (PairV tt tt))) tt
+--
+--                       --8' = Val$ PairV (ff) (PairV ff ff)
+--                       elist =[v1',v2',v3',v4',v5',v6',v7',v8']
+--
+--                       c1 = buildOneZeroCombs elist 0 0
+
+
+-- How to build fuinctions working on ints???
+-- Take it as binary representation maybe?? Solves the problem of it being a recursive type. Choose a number of bytes and go with it.
+ -- plus :: (Iso,T) -- This iso will not work because recursion is only defined for lists. Changing the int representation to a list will make it possible.
+ -- plus = let zero = (intRep . dec2bin) 0
+ --            suc =
+ --            n = Xval "n"
+ --            m = Xval "m"
+ --            h = Xval "h"
+ --            t = Xval "t"
+ --            x = Xval "x"
+ --            y = Xval "y"
+--             v1 = PairV zero y
+--             v2 = PairV (InjR (PairV x t)) y
+--             l1 = InjR (PairV emptyList emptyList)
+--             l2 = InjR (PairV h t)  suc = InjR $ PairV (InjR EmptyV) (Xval "s")
+-- --            p = IsoVar "p"
 --            l = Xval "l"
 --            l' = Xval "l2"
 --            s' = Xval "s2"

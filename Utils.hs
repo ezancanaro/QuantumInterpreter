@@ -5,8 +5,8 @@ import Data.Complex
 import Data.Number.CReal
 
 --Debugging flag-
-doDebug = --False
-          True -- You honestly should not do it. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
+doDebug = False
+          --True -- You honestly should not do it. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
 
 
 --Making debug statements easier to use
@@ -31,21 +31,60 @@ a1 = (1/sqrt(2)) :: CReal
 a2 = (-1/sqrt(2)) :: CReal--fixed precision numbers
 alpha = (a1 :+ 0)
 beta = (a2 :+ 0) -- complex numbers
+plusS = Combination (AlphaVal alpha ttE) (AlphaVal alpha ffE)
+minusS =   Combination (AlphaVal alpha ttE) (AlphaVal beta ffE)
 -----------------------------------------------
 boolLists :: [Bool] -> Term
 boolLists [] = InjLt EmptyTerm
 boolLists (False:lb) = InjRt $ PairTerm (falseTerm) (boolLists lb)
 boolLists (True:lb) = InjRt $ PairTerm (trueTerm) (boolLists lb)
 
+langBool :: Int -> V
+langBool 0 = tt
+langBool 1 = ff
 
-intToPeanoV :: Int -> V
-intToPeanoV 0 = InjL EmptyV
-intToPeanoV x  = InjR $ PairV (InjR EmptyV)  (intToPeanoV $ x-1)
+langBoolT :: Int -> Term
+langBoolT 0 = ValueT tt
+langBoolT 1 = ValueT ff
 
-intToPeanoT :: Int -> Term
-intToPeanoT 0 = InjLt EmptyTerm
-intToPeanoT x  = InjRt $ PairTerm (InjRt EmptyTerm) (intToPeanoT $ x-1)
+intRep :: [Int] -> V
+intRep (x:y:[]) = PairV (langBool x) (langBool y)
+intRep (x:list) = PairV (langBool x) (intRep list)
 
+intRepT :: [Int] -> Term
+intRepT (x:y:[]) = PairTerm (langBoolT x) (langBoolT y)
+intRepT (x:list) = PairTerm (langBoolT x) (intRepT list)
+
+dec2bin :: Int -> [Int] -- Pulled from: https://www.reddit.com/r/haskell/comments/1ikrzo/my_first_program_a_decimal_to_binary_converter/cb5g9md/
+dec2bin = reverse . dec2bin'
+  where dec2bin' 0 = []
+        dec2bin' x = (x `mod` 2) : dec2bin' (x `quot` 2)
+
+build2BytesInt :: Int -> Char -> Either V Term
+build2BytesInt n 'v' = if length (dec2bin n) <= 16
+                          then Left $ intRep $ replicate (16 - lX) 0 ++ l
+                          else error $ "Only defined 2bytes ints for now."
+                          where l = dec2bin n
+                                lX = length l
+build2BytesInt n 't' = if length (dec2bin n) <= 16
+                          then Right $ intRepT $ replicate (16 - lX) 0 ++ l
+                          else error $ "Only defined 2bytes ints for now."
+                          where l = dec2bin n
+                                lX = length l
+
+-- Converts an int to a list of 0,1 and fills it with 0 on the left up to 'size' elements.
+-- Returns a value or term representing the int as a tuple of boolean values.
+buildInt :: Int -> Int -> Char -> Either V Term
+buildInt n size 'v' = if length (dec2bin n) <= size
+                          then Left $ intRep $ replicate (size - lX) 0 ++ l
+                          else error $ "Cannot represent " ++show  n ++ ", with " ++ show size ++ " bits."
+                          where l = dec2bin n
+                                lX = length l
+buildInt n size 't' = if length (dec2bin n) <= size
+                          then Right $ intRepT $ replicate (size - lX) 0 ++ l
+                          else error $ "Cannot represent " ++show  n ++ ", with " ++ show size ++ " bits."
+                          where l = dec2bin n
+                                lX = length l
 
 listsFromPairs :: [(a,b)] -> ([a],[b])
 listsFromPairs listAB = (fmap fst listAB, fmap snd listAB)
@@ -69,6 +108,61 @@ bottomValue (Combination e1 e2) = bottomValue e1
 bottomValue (AlphaVal alpha e) = bottomValue e
 
 
+-- Function used to make sure all tuples of qubits are represented the same on the examples.
+-- Not used directly by the interpreter, since I'm not sure if there's a semantic reason to differentiate (PairV (Pair v1 v2) v3) from (PairV v1 (PairV v2 v3)) in the whole language.
+normalizeTuple :: V -> V
+normalizeTuple (PairV (PairV v1 v2) v3) = PairV v1 (normalizeTuple (PairV v2 v3))
+normalizeTuple (PairV v1 v2) = PairV v1 v2
+
+
+fl:: Either a b -> a
+fl (Left x) = x
+
+fr:: Either a b -> b
+fr (Right x) = x
+
+-- rebuildAsPlusMinus :: E -> E
+-- rebuildAsPlusMinus (Combination e1 e2)
+--   | AlphaVal a e1' <- e1,
+--     AlphaVal b e2' <- e2 =  let x = AlphaVal alpha plusS
+--                                 y = AlphaVal alpha minusS
+--                                 z = AlphaVal beta minusS
+--                                 e1'' = AlphaVal a (Combination x y)
+--                                 e2'' = AlphaVal b (Combination x z)
+--                                 in Combination e1'' e2''
+--
+
+
+-- isStructurallyRecursive :: String -> Iso -> Bool
+-- isStructurallyRecursive f (Clauses []) = True
+-- isStructurallyRecursive f (Clauses ((v,e):veList)) = case v of
+--                                                         InjL EmptyV  -> not $ isfFreeVariable f e
+--                                                         PairV (InjL v) _ -> not $ isfFreeVariable f e
+--                                                         InjR (PairV h t) ->
+--
+-- isfFreeVariable :: String -> E -> Bool
+-- isfFreeVariable f (Val v) = False
+-- isfFreeVariable f (LetE p iso p e) = isfFreeVarInIso f iso
+-- isfFreeVariable f (Combination e1 e2)
+--   | isfFreeVariable f e1 == True = True
+--   | otherwise = isfFreeVariable f e2
+-- isfFreeVariable f (AlphaVal a e) = isfFreeVariable f e
+--
+--
+-- isfFreeVarInIso :: Sring -> Iso -> Bool
+-- isfFreeVarInIso f (IsoVar f')
+--   | f == f' = True
+--   | otherwise = False
+-- isfFreeVarInIso f (Lambda s iso)
+--   | f == s = False
+--   | otherwise = isfFreeVarInIso f iso
+-- isfFreeVarInIso f (App iso1 iso2)
+--   | isfFreeVarInIso f iso1 == True = True
+--   | otherwise = isfFreeVarInIso f iso2
+-- isfFreeVarInIso f (Fixpoint s iso)
+--   | f == s = False
+--   | otherwise = isfFreeVarInIso f iso
+-- isfFreeVarInIso _ = False
 
 getLinearAlphas :: E -> [Alpha]
 getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2

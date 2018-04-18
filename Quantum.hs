@@ -315,8 +315,17 @@ errorOrType (Left e) v = []
 testUnit::[E]->Bool
 testUnit = isUnitary . getLinearTerms
 
+-- Bypass the need to build a matrix for isos defined in the classical setting.
+oneZeroes :: [Alpha] -> Bool
+oneZeroes [] = True
+oneZeroes (h:t)
+  | h /= 0 && h/= 1 = False
+  | otherwise = oneZeroes t
+
 isUnitary :: [[Alpha]] -> Bool
-isUnitary lists = let mat =  debug(show lists ++ "\n")
+isUnitary lists
+  | oneZeroes (head lists) = True
+  | otherwise   = let mat =  debug(show lists ++ "\n")
                               fromLists lists --Create matrix from lists
                       conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
                       inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
@@ -325,6 +334,27 @@ isUnitary lists = let mat =  debug(show lists ++ "\n")
                                                                             True --Test unitarity
                          else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
                                 False
+
+
+
+
+
+
+
+grabPatternTypesFromAnnotation :: (Iso,T) -> Delta
+grabPatternTypesFromAnnotation (Clauses isoDefs, (Iso a _)) = let (pats,_) = listsFromPairs isoDefs
+                                                                in concat $ map (matchPatternWithAnnotation a) pats
+grabPatternTypesFromAnnotation (Lambda _ iso, (Comp _ _ t)) = grabPatternTypesFromAnnotation (iso,t)
+grabPatternTypesFromAnnotation (Fixpoint _ iso,t) = grabPatternTypesFromAnnotation (iso,t)
+
+matchPatternWithAnnotation :: A -> V -> Delta
+matchPatternWithAnnotation _ (EmptyV) = []
+matchPatternWithAnnotation a (Xval s)  = (s,a):[]
+matchPatternWithAnnotation (Sum a b) (InjL v)  = matchPatternWithAnnotation a v
+matchPatternWithAnnotation (Sum a b) (InjR v)  = matchPatternWithAnnotation b v
+matchPatternWithAnnotation (Prod a b) (PairV v1 v2) = matchPatternWithAnnotation a v1 ++ matchPatternWithAnnotation b v2
+matchPatternWithAnnotation a v = error $ "Cannot associate value: " ++ show v ++ "with type annotation: " ++ show a
+
 
 -- getLinearAlphas :: E -> [Alpha]
 -- getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2
