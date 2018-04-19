@@ -524,7 +524,7 @@ nextSigned = let zero = fl $ buildInt 0 4 'v'
                  a2 = Val $ PairV (ff) (Xval "y'")
                  a3 = Val $ PairV (tt) (Xval "y'")
                  alist = [a1,a2,a3]
-                 c1 = buildOneZeroCombs alist 0 0
+                 c1 = Combination (AlphaVal (1:+0) a1) (Combination (AlphaVal (0:+0) a1) (AlphaVal (0:+0) a1)) --buildOneZeroCombs alist 0 0
                  c2 = buildOneZeroCombs alist 1 0
                  c3 = buildOneZeroCombs alist 2 0
                  e1 = c1
@@ -553,7 +553,7 @@ prevSigned = let zero = fl $ buildInt 0 4 'v'
 
 
                  alist = [a1,a2,a3]
-                 c1 = buildOneZeroCombs alist 0 0
+                 c1 = Combination (AlphaVal (1:+0) a1) (Combination (AlphaVal (0:+0) a1) (AlphaVal (0:+0) a1))--buildOneZeroCombs alist 0 0
                  c2 = buildOneZeroCombs alist 1 0
                  c3 = buildOneZeroCombs alist 2 0
                  e1 = c1

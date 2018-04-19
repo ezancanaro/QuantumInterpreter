@@ -21,6 +21,17 @@ support (vx:sigma) = fst vx : support sigma
 intersectionTest :: (Sigma->[String]) -> Sigma -> Sigma -> [String]
 intersectionTest f sig1 sig2 = (f sig1) `intersect` (f sig2)
 
+--Starting point for evaluating terms. Since every program could potentially generate a combination we always apply these properties.
+startEval :: Term -> V
+startEval t = fullyReduce $ (algebraicProperties . tensorProductRep) $ applicativeContext t
+
+-- Make sure combinations are fully reduced before returning them.
+-- Should be able to eliminate this function call by properly dealing with these results in the TensorProductRep function, but I can't for the life of me figure it out there, so I need to add this stupid little function to make sure it works properly and ramble on a stupid comment to alleviate the feeling of being kinda dumb, but not that dumb.
+fullyReduce :: E -> V
+fullyReduce e = if combFullyReduced $ e
+                  then removeEV $ Evalue e
+                  else fullyReduce $ (algebraicProperties . tensorProductRepresentation) e
+
 -- maybe sig1 . maybe sig2
 
 matching:: Sigma -> V -> V -> Maybe Sigma
@@ -105,16 +116,19 @@ applyValueToClauses (Clauses isoDefs) (ValueT v) = let match = matchClauses isoD
 tensorProductRep :: V -> E
 tensorProductRep (PairV (Evalue e1) (PairV v1 v2)) = debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
                                                       tensorProductRep (PairV (Evalue e1) tensorPair)
-                                                        where tensorPair = Evalue $ tensorProductRep $ PairV v1 v2
+                                                        where tensorPair = removeEV $ Evalue $ tensorProductRep $ PairV v1 v2
 -- Defining this case for the sake of completeness, but the interpreter should default to representing tuples as <v,<v2,v3>>.
 -- Need to make this clear when building the parser to allow the <v1,v2,...,vn> syntax.
 tensorProductRep (PairV (PairV v1 v2) (Evalue e1) ) =debug ("tensor2:: " ++ show (PairV (PairV v1 v2) (Evalue e1)) ++ "\n")
                                                       tensorProductRep (PairV tensorPair (Evalue e1))
-                                                        where tensorPair = Evalue $ tensorProductRep $ PairV v1 v2
-tensorProductRep (PairV (Evalue e1) (Evalue e2)) = let c1 = pairAlphasWithValues True e1
-                                                       c2 = pairAlphasWithValues True e2
-                                                   in debug ("tensor3:: " ++ show (PairV (Evalue e1) (Evalue e2)) ++ "\n")
-                                                        combPairs (pairThem c1 c2)
+                                                        where tensorPair = removeEV $ Evalue $ tensorProductRep $ PairV v1 v2
+tensorProductRep (PairV (Evalue e1) (Evalue e2))
+  | AlphaVal (1:+0) (Val v1) <- e1 = tensorProductRep (PairV v1 $ removeEV (Evalue e2)) --Casting of val to eval is really annoying in this iplementation.
+  | AlphaVal (1:+0) (Val v2) <- e2 = tensorProductRep (PairV (removeEV (Evalue e1)) v2)
+  | otherwise = let  c1 = pairAlphasWithValues True e1
+                     c2 = pairAlphasWithValues True e2
+                 in debug ("tensor3:: " ++ show (PairV (Evalue e1) (Evalue e2)) ++ "\n")
+                      combPairs (pairThem c1 c2)
 tensorProductRep (PairV (Evalue e1) v2) =  let c1 = pairAlphasWithValues True (tensorProductRepresentation e1)
                                                c2 = [((1:+0), tensorProductRep v2)]
                                                in  debug ("tensor4:: " ++ show (PairV (Evalue e1) v2) ++ "\n")
@@ -128,23 +142,60 @@ tensorProductRep (Evalue e)= debug ("tensor6:: " ++ show (Evalue e) ++ "\n")
 tensorProductRep (PairV v1 v2) = Val $ PairV v1 v2
 --Treating lists of linear combination:
 tensorProductRep (InjR (PairV v1 v2)) = debug("TensorList " ++ show (PairV v1 v2))
-                                          tensorProductRepresentation $ listCombsToCombLists (InjR $ Evalue $ tensorProductRep (PairV v1 v2))
+                                          tensorProductRepresentation $  listCombsToCombLists (InjR $ removeEV $ Evalue $ tensorProductRep (PairV v1 v2))
 tensorProductRep (InjL EmptyV) = Val $ InjL EmptyV
 tensorProductRep v = debug("Tensor Nada")
                       Val $ v
 --tensorProductRep v = error $ "TensorRep undefined for: " ++ show v
 
+--THe implementation tends to generate a lot of (Evalue (Val v)) terms, this functions gets rid of them
+removeEV :: V -> V
+removeEV (Evalue (Val v)) = v
+removeEV v = v
+
 tensorProductRepresentation :: E -> E
 tensorProductRepresentation (Val (Evalue e)) = tensorProductRepresentation e
 tensorProductRepresentation (Val v) = tensorProductRep v
 tensorProductRepresentation (AlphaVal a (Val (PairV v1 v2))) = algebraicProperties $ AlphaVal a (tensorProductRep $ PairV v1 v2)
-tensorProductRepresentation (AlphaVal a e) = AlphaVal a (tensorProductRepresentation e) -- No need to go deeper
-tensorProductRepresentation (Combination e1 e2) =  Combination (tensorProductRepresentation e1) (tensorProductRepresentation e2)
-tensorProductRepresentation e = error $ "Undefined for: " ++ show e
+tensorProductRepresentation (AlphaVal a (Val (InjR v)))
+  | (Evalue (Val (PairV v1 v2))) <- v = tensorProductRepresentation $ AlphaVal a (Val (InjR (PairV v1 v2)))
+  | (PairV v1 v2) <- v,
+    a == (1:+0) = tensorProductRep (InjR (PairV v1 v2))
+  | (PairV v1 v2) <- v, --Treat it as normal pair of combinations and readd the list constructor after.
+    a /= (1:+0) = readdListCons $ algebraicProperties $ AlphaVal a (tensorProductRep $ PairV v1 v2)
+  | otherwise = AlphaVal a (tensorProductRepresentation (Val (InjR v)))
+tensorProductRepresentation (AlphaVal a e) = AlphaVal a (tensorProductRepresentation e) --
+tensorProductRepresentation (Combination e1 e2) = Combination (tensorProductRepresentation e1) (tensorProductRepresentation e2)--
+  --These cases are needed to make sure that we don't stop before working on the outrer layer of a list. Without them we stop at: 0.3[InjL,0.5[x,y]+0.5[z,w]]
+  --Without proper guards we get ourselves into an infinite recursion. SAD.
+tensorProductRepresentation e = e
+
+combFullyReduced :: E -> Bool
+combFullyReduced (Combination e1 e2)
+  | AlphaVal a (Val (InjR (PairV v1 v2))) <- e1
+      = case v1 of
+          Evalue e  -> False
+          otherwise -> case v2 of
+                          Evalue e  -> False
+                          otherwise -> True
+  | AlphaVal a (Val (InjR (PairV v1 v2))) <- e2
+      = case v1 of
+          Evalue e  -> False
+          otherwise -> case v2 of
+                          Evalue e  -> False
+                          otherwise -> True
+  | otherwise =  True
+combFullyReduced e = True
 
 listCombsToCombLists :: V -> E
 listCombsToCombLists (InjR (Evalue c))
   | Combination (AlphaVal a1 e1) (AlphaVal a2 e2) <- c = Combination (AlphaVal a1 (Val $ InjR $ Evalue e1)) ((AlphaVal a2 (Val $ InjR $ Evalue e2)))
+listCombsToCombLists e = error $ "Tensor of lists error on value: " ++ show e
+
+readdListCons :: E -> E
+readdListCons (AlphaVal a e1) = AlphaVal a (Val (InjR $ removeEV $ Evalue e1))
+readdListCons (Combination e1 e2) = Combination (readdListCons e1) (readdListCons e2)
+readdListCons (Val v) = Val $ InjR v
 
   ---0.707~<InjR_(),1~InjL_()>+0.707~<InjR_(),1~InjR_()> == <injR(),-0.707~InjL()+0.707InjR()>
   --Not really a needed function, but it could be usefull for presenting results
@@ -179,9 +230,9 @@ pairThem :: [(Alpha,E)] -> [(Alpha,E)] -> [((Alpha,E),(Alpha,E))]
 pairThem (x)(y) = [ (p1,p2) | p1<-x, p2<-y ]
 
 combPairs :: [((Alpha,E),(Alpha,E))] -> E
-combPairs (((a1,e1),(a2,e2)):[]) = AlphaVal (a1*a2) (Val (PairV (Evalue e1) (Evalue e2)))
+combPairs (((a1,e1),(a2,e2)):[]) = AlphaVal (a1*a2) (Val (PairV (removeEV $ Evalue e1) (removeEV $ Evalue e2)))
 combPairs (((a1,e1),(a2,e2)):list) = Combination comb1 (combPairs list)
-                                    where comb1 = AlphaVal (a1*a2) (Val (PairV (Evalue e1) (Evalue e2)))
+                                    where comb1 = AlphaVal (a1*a2) (Val (PairV (removeEV $ Evalue e1) (removeEV $ Evalue e2)))
 
 isVlinear :: V -> Bool
 isVlinear (InjL v) = isVlinear v
@@ -228,11 +279,14 @@ findFixedPoint f i (PairV (InjR v) _) fix = findFixedPoint f i (InjR v) fix
 -- --Cases where we apply a tuple of linear combinations on a fix-point iso.
 -- findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ tensorProductRep (PairV (Evalue e) t)) fix
 --Case of a list with elements -- Need to keep unfolding the iso.
-findFixedPoint f i (InjR (PairV h t)) fix = let fix' = renameInFixedPoint f (i+1) fix
+findFixedPoint f i (InjR (PairV h t)) fix
+  | Evalue (Val v') <- h = findFixedPoint f i (InjR (PairV v' t)) fix
+  | Evalue (Val v') <- t = findFixedPoint f i (InjR (PairV h v')) fix
+  |otherwise                              = let fix' = renameInFixedPoint f (i+1) fix
                                                 pairNameIso = ((f ++ show i), renameIsoVars i fix')
                                                 in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
                                                     pairNameIso : findFixedPoint f (i+1) t fix
-
+findFixedPoint f i (InjR (Evalue (Val v))) fix = findFixedPoint f i (InjR v) fix
 --Special case for applying a Linear Combination to a fixPoint.
 --Since amplitudes are not taken into consideration when pattern-matching values, we ignore them to create the proper unfolded function.
 findFixedPoint f i (Evalue e) fix = findFixedPoint f i v fix
@@ -599,8 +653,9 @@ isVal _ = True
 --                           sig -> Right (sig,snd ve)
 --
 ---------------------------------------------------------Program inversion
--- If we consider 2 well defined isos F and G, and valueTerm x, with program being (F G) x, this function allows the inversion of the whole ting.
--- For every program, inversion could be done by this function: (F G) x -1 =
+-- Not implemented yet
+-- If we consider 2 well defined isos F and G, and valueTerm x, with program p being (F G) x, this function should allow the inversion of the whole ting.
+-- For every program, inversion could be done by this function: p^-1 = (F G)^-1 ((F G )x)
 invertTerm :: Term -> Term
 invertTerm (Let p t1 t2) = Let p (invertTerm t1) (invertTerm t2)
 invertTerm (Omega iso t1) = Omega (invertIso iso) (invertTerm t1)

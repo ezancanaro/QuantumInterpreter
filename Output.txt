@@ -1,2 +1,1 @@
 tests: if | map | had | hadHad| mapAcc | cnot | terms --Input quit to stop.
- 

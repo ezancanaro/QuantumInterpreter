@@ -101,10 +101,11 @@ instance Show (V) where
   show (EmptyV) = "()"
   show (Xval s) = s
   show (InjL v) = "InjL_" ++ show v
-  --show (InjR (PairV v1 v2)) = "InjR_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
+  show (InjR (PairV v1 v2)) = "R_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
+  --show (InjR (Evalue (Val (PairV v1 v2)))) = show (InjR (PairV v1 v2)) --It's really sad this pattern needs to exist.
   show (InjR v) = "InjR_" ++ show v
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
-  show (Evalue e) =  show e
+  show (Evalue e) = show e
 
 instance Show (E) where
   show (Val v) = show v
@@ -115,7 +116,7 @@ instance Show (E) where
       | otherwise = show v1 ++ "+" ++ show v2
   show (AlphaVal alpha e)
       | alpha == 0 = "0"
-      | alpha == 1 = "" ++ show e
+      | alpha == 1 = "1" ++ show e
       | imagPart alpha == 0 = capDigitsOnRealNumber 3 alpha ++ "~" ++ show e
       | otherwise = show (alpha) ++ "~" ++ show e
 

@@ -19,14 +19,16 @@ test1 = let (ifIso,ifType) = if1
             (had,_) = hadIso
             term = (PairTerm (InjLt EmptyTerm) (InjLt EmptyTerm))
             check = Omega (App ifIso (App had had)) term
-            evaluation = ValueT $ applicativeContext check
+            evaluation = ValueT $ startEval check
             if' = invertIso ifIso
             if'Type = invertType ifType
             check2 = Omega (App if' (App had had)) evaluation
+            result2 = startEval check2
+            --r3 = algebraicProperties $ tensorProductRep result2
             in ("If Type:" ++ show (typeCheck delta psi ifIso ifType) )
               ++ "\nTestig if, with g,h being Had\n" ++ show ifIso ++ "\n" ++  show term ++".\nEvals to:\n\t" ++ show evaluation
                 ++ "\n\nInverted if: " ++ show (invertIso ifIso) ++ "Typed: " ++ show if'Type
-                  ++ "\n  Evals to: " ++ show (applicativeContext check2)
+                  ++ "\n  Evals to: " ++ show result2 -- ++ "\n\nTensor: " ++ show r3
               --    ++ ("\nPairType:" ++ show (mytermTypeCheck delta psi pterm (Sum bool One)))
 
 testMap :: String
@@ -43,15 +45,26 @@ testMap =
       check3 = Omega (App map' had) list3
       inverseMap = invertIso map'
       inverseMapType = invertType isoType
-      result = ValueT $ applicativeContext check3
+      result = ValueT $ startEval check3
       check' = Omega (App inverseMap had) result
-      result' = applicativeContext check'
-      curious = tensorProductRep $ applicativeContext check3
+      result' = startEval check'
+      ccc = applicativeContext check'
+  --    curious = tensorProductRep result'
       in ( "\n Has Type: " ++ show (typeCheck delta psi map' isoType))
         ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show result
           ++ "\n\n Inverse Map: " ++ show inverseMap
-            ++ "\n\n Evals to: " ++ show result'
-              ++ "\n\n Curiously:: " ++ show curious
+            ++ "\n\n Evals to: " ++ show ccc ++ "\n\n\t" ++ show result'
+              -- ++ "\n\n Curiously:: " ++ show curious
+
+--E0.354~VR_[EVE0.707~VInjL_()+VE0.707~VInjR_()
+      --      : EVR_[EVE0.707~VInjL_()+VE0.707~VInjR_()
+                -- : EVR_[EVE0.707~VInjL_()+VE0.707~VInjR_()
+                    -- : EVInjL_()]]]
+
+-- E0.5~VR_[InjL_()
+            -- : E0.5~VR_[InjL_()
+                -- : R_[InjL_()
+                  -- : InjL_()]]
 
 testHad :: String
 testHad = let (had,isoType) = hadIso
@@ -59,10 +72,10 @@ testHad = let (had,isoType) = hadIso
               psi = []
               arg = InjLt EmptyTerm
               check = Omega had arg
-              result = ValueT $ applicativeContext check
+              result = ValueT $ startEval check
               invHad = invertIso had
               invHadType = invertType isoType
-              result' = applicativeContext (Omega had result)
+              result' = startEval (Omega had result)
               in ("Iso Had::" ++ show (typeCheck delta psi had isoType) ++ "\n" ++ show had)
                 ++  "Applied to" ++ show arg ++ "\n\nEvals to:\n\t " ++ show result
                   ++ "\n\nInverse Had:\n\t " ++ show invHad
@@ -125,8 +138,8 @@ testNotEval = let  bool = Sum One One
                    notE = Clauses [(ff,e1),(tt,e2)]
                    check = Omega notE ttTerm
                    check2 = Omega notE ffTerm
-              in show (applicativeContext check) ++ "\n"
-                    ++ show (applicativeContext check2)
+              in show (startEval check) ++ "\n"
+                    ++ show (startEval check2)
 
 testHadHad :: String
 testHadHad =  let (had,isoType) = hadIso
@@ -135,7 +148,7 @@ testHadHad =  let (had,isoType) = hadIso
                   combVal = ValueT $ Evalue $ Combination (AlphaVal alpha (Val tt)) (AlphaVal beta (Val ff))
                   check = Omega had (combVal)
                   in ("Had Type:" ++ show (typeCheck delta psi had isoType) )
-                    ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
+                    ++  "\n\nEvals to:\n\t " ++ show (startEval check)
 
 
 combinationTest :: String
@@ -168,7 +181,7 @@ tester = let eTT = Val tt --ExtendedValue true
              psi = []
              check = Omega (App cnot mynot) (ValueT pair)
              types = grabPatternTypesFromAnnotation (myIf,ifType)
-             in --"Cnot:: " ++ show cnot ++ "  " ++ show pair ++  "\n\n " ++ show (applicativeContext check) ++ "\n\n" ++ show types
+             in --"Cnot:: " ++ show cnot ++ "  " ++ show pair ++  "\n\n " ++ show (startEval check) ++ "\n\n" ++ show types
                 "Tensor product of: " ++ show pair2 ++ "\n\t " ++ show tensor2
 testOracle :: String
 testOracle = let eTT = Val tt --ExtendedValue true
@@ -181,30 +194,30 @@ testOracle = let eTT = Val tt --ExtendedValue true
                  (oracle,_) = oracle2
                  (mynot,_) = not1
                  check = Omega (App oracle mynot) (ValueT pair)
-                 result = applicativeContext check
+                 result = startEval check
                  check2 = Omega (App oracle mynot) (ValueT result)
-                 result2 = applicativeContext check2
+                 result2 = startEval check2
                 -- test = tensorProductRepresentation $ Val result
                  deutschJozsa = PairV (Evalue e1) (Evalue e2)
                  checkDeutschJozsa = Omega (App oracle mynot) (ValueT deutschJozsa)
-                 result3 = applicativeContext checkDeutschJozsa
+                 result3 = startEval checkDeutschJozsa
                  (had1in2,_) = hadOneOfTwo
                  (hadTensID,hadTIdType) = hadTensorId
                  check4 = Omega hadTensID (ValueT result3)
                  check5 = Omega hadTensID (ValueT pairTest)
-                 result4 = applicativeContext check4
-                 result5 = applicativeContext check5
+                 result4 = startEval check4
+                 result5 = startEval check5
                  tensor4 = tensorProductRep result4
                  (myId,_) = idIso
                  (cst,_) = constant
 
                  checkWithID = Omega (App oracle cst) (ValueT deutschJozsa)
-                 resultID = applicativeContext checkWithID
+                 resultID = startEval checkWithID
                  withIDstep2 = Omega had1in2 (ValueT resultID)
-                 resultID2 = applicativeContext withIDstep2
+                 resultID2 = startEval withIDstep2
 
                  checkNew = Omega hadTensID (ValueT pairTest)
-                 resultNew = applicativeContext checkNew
+                 resultNew = startEval checkNew
 
                  -- te = equivalentStates (Val resultNew)
                  -- te' = tensorProductRepresentation te
@@ -240,34 +253,34 @@ testGrover = let (gOracle,ty) = simplifiedGroverOracle
                  initialState = ValueT $ normalizeTuple $ PairV fourBits0 ff
                 -- nT = normalizeTuple $ PairV fourBits0 ff
                  hadInitial = Omega mHad initialState
-                 preparedState = applicativeContext hadInitial
+                 preparedState = startEval hadInitial
                  groverP = Omega gOracle $ ValueT preparedState
-                 oracleResult = applicativeContext groverP
+                 oracleResult = startEval groverP
                  (had45,_) = hadFourOfFive
                  hadTransf = Omega had45 $ ValueT oracleResult
 
-                 resultHadTransf = applicativeContext hadTransf
+                 resultHadTransf = startEval hadTransf
                  (condPhase,_) = conditionalPhaseShift
                  cond = Omega condPhase $ ValueT resultHadTransf
-                 resultCondPhaseShift = applicativeContext cond
+                 resultCondPhaseShift = startEval cond
 
                  (gr3,_) = grover3
                  (mHad4,_) = had4
                  bit3 = fl $ buildInt 0 3 'v'
                  initialSt3 = ValueT $ normalizeTuple $ PairV bit3 ff
                  hadIn4 = Omega mHad4 initialSt3
-                 preparedState4 = applicativeContext hadIn4
+                 preparedState4 = startEval hadIn4
                  groverP3 = Omega gr3 $ ValueT preparedState4
-                 oracleResult3 = applicativeContext groverP3
+                 oracleResult3 = startEval groverP3
                  (had34,_) = hadThreeOfFour
                  hadTransf3 = Omega had34 $ ValueT oracleResult3
-                 resultHadTransf3 = applicativeContext hadTransf3
+                 resultHadTransf3 = startEval hadTransf3
                  (condPhase4,_) = conditionalPhase4
                  cond3 = Omega condPhase4 $ ValueT resultHadTransf3
-                 resultCondPhaseShift3 = applicativeContext cond3
+                 resultCondPhaseShift3 = startEval cond3
                  -- algebra = algebraicProperties $ Val resultCondPhaseShift3
                  lastStep = Omega had34 $ ValueT resultCondPhaseShift
-                 lastR = applicativeContext lastStep
+                 lastR = startEval lastStep
 
                  in "simplifiedGrover\n " ++ show gr3-- ++ "\n\n Typechecks to:  " ++ show myT
                     ++ "\n\nApplied to: " ++ show preparedState4 ++ "\n\n\t Results in:\n" ++ show oracleResult3
@@ -299,23 +312,23 @@ nextInt4 = let (nextInt,ty) = isoNext
                v = fr $ buildInt 2 4 't'
                check = Omega nextInt v
                typeC = typeCheck [] [] nextInt ty
-               result = applicativeContext check
+               result = startEval check
                (signedN,ty2) = nextSigned
                delta = grabPatternTypesFromAnnotation (signedN,ty2)
                typess = typeCheck delta [] signedN ty2
                v2 = PairTerm (ValueT ff) v
                check2 = Omega (App (App signedN nextInt) prevInt) v2
-               result2 = applicativeContext check2
+               result2 = startEval check2
                (prSign,tyPSign) = prevSigned
                deltaPr = grabPatternTypesFromAnnotation (prSign,tyPSign)
-               typessPr = typeCheck delta [] prSign tyPSign
+               typessPr = typeCheck deltaPr [] prSign tyPSign
                checkPr = Omega (App (App prSign nextInt) prevInt) v2
-               resultPr = applicativeContext checkPr
+               resultPr = startEval checkPr
                in "Next 4bit Int: \n" ++ show nextInt ++ "\n\nTypechecks: "  ++  show typeC
                     ++ "\n\n Applied to: " ++ show v ++ "::\n" ++ show result
-                      ++ "\nSigned::\n" ++ show signedN ++ "\nType: " ++ show typess
+                      ++ "\nI'm not sure if the signed versions are well-defined: SignedNext::\n" ++ show signedN ++ "\nType: " ++ show typess
                         ++ "\n\n Applied to: " ++ show v2 ++ "::\n" ++ show result2
-                          ++ "\n\n Previous Signed:\n" ++ show prSign ++ "\nType: " ++ show typessPr
+                          ++ "\n\n SignedPrevious:\n" ++ show prSign ++ "\nType: " ++ show typessPr
                             ++ "\n\n Applied to: " ++ show v2 ++ "::\n" ++ show resultPr
 
 quantumWalk :: String
@@ -336,18 +349,18 @@ quantumWalk = let (walk,walkType) = walkTIso
                   v2 = PairTerm (ValueT tt) v
                   valTest = PairTerm (ValueT tt) v2
                   check = Omega builtIso valTest
-                  result = applicativeContext check
+                  result = startEval check
 
                   (had,_) = hadIso
                   (hadIdHP,_) = hadTensorIHp
-                  v3 = applicativeContext (Omega hadIdHP valTest)
+                  v3 = startEval (Omega hadIdHP valTest)
                   --v3 = PairTerm (ValueT x) v2
                   check3 = Omega builtIso $ ValueT v3
-                  result3 = applicativeContext check3
+                  result3 = startEval check3
                   check4 = Omega hadIdHP $ ValueT result3
-                  result4 = applicativeContext check4
+                  result4 = startEval check4
                   check5 = Omega builtIso $ ValueT result4
-                  result5 = applicativeContext check5
+                  result5 = startEval check5
                   (walki,_) = walkTransform
                   in "Quantum Walk transformer T: \n" ++ show walk ++ "\nTypechecks to: " ++ show typeC
                         -- ++ "\n\nApplied to: " ++ show valTest ++ " :: \n\n" ++ show result
@@ -373,9 +386,9 @@ testTest = let (had23,_) = hadTwoOfThree
                p = Combination (AlphaVal alpha ttE) (AlphaVal alpha ffE)
                p2 = Combination (AlphaVal alpha ttE) (AlphaVal beta ffE)
                v1 = PairV (Evalue p) (PairV (Evalue p) (Evalue p2))
-               r = applicativeContext $ (Omega had23 $ ValueT v1)
+               r = startEval $ (Omega had23 $ ValueT v1)
                v2 = PairV (Evalue p) (Evalue p2)
-               r2 = applicativeContext $ (Omega had12 $ ValueT v2)
+               r2 = startEval $ (Omega had12 $ ValueT v2)
                in "St: " ++ show v1 ++ "\n\n goes TO:: " ++ show r
                     ++ "\n\n ST2: " ++ show v2 ++ "\n\n goest TO: " ++ show r2
 
@@ -401,11 +414,17 @@ gg = let  (map',isoType) = map1
           (had,_) = hadIso
           list3 = boolLists [True,True]
           check3 = Omega (App map' had) list3
-          result = applicativeContext check3
-          aaa = algebraicProperties (Val result)
+          result = startEval check3
+
           t = tensorProductRep result
-          in "a:" ++ show aaa ++ "\n\n"
-                ++ "Tensor: " ++ show result ++ "\n\n " ++ show t
+
+          list4 = boolLists [True,True,False]
+          check4 = Omega (App map' had) list4
+          result4 = startEval check4
+
+          t4 = tensorProductRep result4
+          in "T1: " ++ show result ++ " = \n\n " ++ show t
+                ++ "\n--------------\nT2: " ++ show result4 ++ " = \n\n " ++ show t4
 
 
 testf :: E -> E -> E
