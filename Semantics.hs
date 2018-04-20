@@ -141,8 +141,13 @@ tensorProductRep (Evalue e)= debug ("tensor6:: " ++ show (Evalue e) ++ "\n")
                                 tensorProductRepresentation e
 tensorProductRep (PairV v1 v2) = Val $ PairV v1 v2
 --Treating lists of linear combination:
-tensorProductRep (InjR (PairV v1 v2)) = debug("TensorList " ++ show (PairV v1 v2))
-                                          tensorProductRepresentation $  listCombsToCombLists (InjR $ removeEV $ Evalue $ tensorProductRep (PairV v1 v2))
+tensorProductRep (InjR (PairV v1 v2)) =
+                                        if thisTensor == Val (InjR (PairV v1 v2))
+                                          then debug("TensorListStopped" ++ show (PairV v1 v2))
+                                                thisTensor
+                                          else debug("TensorList " ++ show (PairV v1 v2))
+                                                tensorProductRepresentation thisTensor
+                                        where thisTensor = listCombsToCombLists (InjR $ removeEV $ Evalue $ tensorProductRep (PairV v1 v2))
 tensorProductRep (InjL EmptyV) = Val $ InjL EmptyV
 tensorProductRep v = debug("Tensor Nada")
                       Val $ v
@@ -190,6 +195,10 @@ combFullyReduced e = True
 listCombsToCombLists :: V -> E
 listCombsToCombLists (InjR (Evalue c))
   | Combination (AlphaVal a1 e1) (AlphaVal a2 e2) <- c = Combination (AlphaVal a1 (Val $ InjR $ Evalue e1)) ((AlphaVal a2 (Val $ InjR $ Evalue e2)))
+  | AlphaVal (1:+0) e <- c = Val $ InjR $ removeEV $ Evalue e
+  | AlphaVal a e <-c = AlphaVal a $ Val $ InjR $ removeEV $ Evalue e
+listCombsToCombLists (InjR v) = Val $ InjR v
+-- listCombsToCombLists (InjL EmptyV) = Val $ InjL EmptyV
 listCombsToCombLists e = error $ "Tensor of lists error on value: " ++ show e
 
 readdListCons :: E -> E
@@ -294,9 +303,7 @@ findFixedPoint f i (Evalue e) fix = findFixedPoint f i v fix
 findFixedPoint f i v iso = error $ "Cannot find fixPoint when applying to value: " ++ show v --Just in case of unexpected behavior. Should never arise.
 
 --Extracts values from a linear combination.
---TODO May need to be altered, if a fixPoint function can be applied to a combination of lists.
--- By now, we assume it will return a list of combinations as: 1.list + 0.emptyList
--- Should be a safe bet, considering the structural recursion requirement.
+--A linear combination of lists will have every list be of the same size, so this should work properly.
 extractValue :: E -> Maybe V
 extractValue (Val (Evalue e)) = extractValue e
 extractValue (Val v) = Just v

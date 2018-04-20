@@ -101,7 +101,9 @@ instance Show (V) where
   show (EmptyV) = "()"
   show (Xval s) = s
   show (InjL v) = "InjL_" ++ show v
-  show (InjR (PairV v1 v2)) = "R_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
+  show (InjR (PairV v1 v2))
+    | InjL EmptyV <- v2 = "R_[" ++ show v1 ++ " : " ++ "[]" ++ "]"
+    | otherwise = "R_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
   --show (InjR (Evalue (Val (PairV v1 v2)))) = show (InjR (PairV v1 v2)) --It's really sad this pattern needs to exist.
   show (InjR v) = "InjR_" ++ show v
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"

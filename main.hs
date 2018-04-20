@@ -53,7 +53,7 @@ testMap =
       in ( "\n Has Type: " ++ show (typeCheck delta psi map' isoType))
         ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show result
           ++ "\n\n Inverse Map: " ++ show inverseMap
-            ++ "\n\n Evals to: " ++ show ccc ++ "\n\n\t" ++ show result'
+            ++ "\n\n Evals to: " ++ show result'
               -- ++ "\n\n Curiously:: " ++ show curious
 
 --E0.354~VR_[EVE0.707~VInjL_()+VE0.707~VInjR_()
@@ -438,7 +438,7 @@ testf e1 e2
 -- Loops to allow one to choose a pre-defined example.
 main = do
 
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms | oracle | grover | next | walk --Input quit to stop.\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms | deutsch | grover | next | walk --Input quit to stop.\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -449,7 +449,7 @@ main = do
           "terms" -> putStr testTerms
           "a" -> putStr testNotEval
           "hadHad" -> putStr testHadHad
-          "oracle" -> putStr testOracle
+          "deutsch" -> putStr testOracle
           "grover" -> putStr testGrover
           "quit" -> exitSuccess
           "next" -> putStr nextInt4

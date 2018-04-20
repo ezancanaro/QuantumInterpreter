@@ -315,16 +315,22 @@ errorOrType (Left e) v = []
 testUnit::[E]->Bool
 testUnit = isUnitary . getLinearTerms
 
--- Bypass the need to build a matrix for isos defined in the classical setting.
+-- Bypass the need to build a matrix for isos defined in the classical setting. Could probably do with a smarter version of this.
 oneZeroes :: [Alpha] -> Bool
 oneZeroes [] = True
 oneZeroes (h:t)
   | h /= 0 && h/= 1 = False
   | otherwise = oneZeroes t
 
+oZ :: [[Alpha]] -> Bool
+oZ [] = True
+oZ (h:t)
+  | not (oneZeroes h) = False
+  | otherwise = oZ t
+
 isUnitary :: [[Alpha]] -> Bool
 isUnitary lists
-  | oneZeroes (head lists) = True
+  | oZ lists = True
   | otherwise   = let mat =  debug(show lists ++ "\n")
                               fromLists lists --Create matrix from lists
                       conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
@@ -341,19 +347,7 @@ isUnitary lists
 
 
 
-grabPatternTypesFromAnnotation :: (Iso,T) -> Delta
-grabPatternTypesFromAnnotation (Clauses isoDefs, (Iso a _)) = let (pats,_) = listsFromPairs isoDefs
-                                                                in concat $ map (matchPatternWithAnnotation a) pats
-grabPatternTypesFromAnnotation (Lambda _ iso, (Comp _ _ t)) = grabPatternTypesFromAnnotation (iso,t)
-grabPatternTypesFromAnnotation (Fixpoint _ iso,t) = grabPatternTypesFromAnnotation (iso,t)
 
-matchPatternWithAnnotation :: A -> V -> Delta
-matchPatternWithAnnotation _ (EmptyV) = []
-matchPatternWithAnnotation a (Xval s)  = (s,a):[]
-matchPatternWithAnnotation (Sum a b) (InjL v)  = matchPatternWithAnnotation a v
-matchPatternWithAnnotation (Sum a b) (InjR v)  = matchPatternWithAnnotation b v
-matchPatternWithAnnotation (Prod a b) (PairV v1 v2) = matchPatternWithAnnotation a v1 ++ matchPatternWithAnnotation b v2
-matchPatternWithAnnotation a v = error $ "Cannot associate value: " ++ show v ++ "with type annotation: " ++ show a
 
 
 -- getLinearAlphas :: E -> [Alpha]

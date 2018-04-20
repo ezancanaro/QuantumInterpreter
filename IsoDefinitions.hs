@@ -233,6 +233,19 @@ oracle2 = let (cnot,_) = simpleCnot
               ty = Iso (Prod bool bool) (Prod bool (Prod bool bool)) -- Not the right type!!
               in (oracle2,ty)
 
+deutsch :: (Iso,T)
+deutsch = let v1 = PairV (Xval "x") (Xval "y")
+              e1 = LetE (Xprod "h1") (IsoVar "had") (Xprod "x") e2
+              e2 = LetE (Xprod "h2") (IsoVar "had") (Xprod "y") e3
+              e3 = LetE (Xprod "q") (IsoVar "Oracle") (PairP (Xprod "h1") (Xprod "h2")) e4
+              e4 = LetE (Xprod "out") (IsoVar "hadX") (Xprod "q") e5
+              e5 = AlphaVal (1:+0) (Val $ Xval "out")
+              clauses = Clauses [(v1,e1)]
+              iso = Lambda "had" (Lambda "Oracle" (Lambda "hadX" clauses))
+              ty  = Iso (Prod bool bool) (Prod bool bool)
+              isoType = Comp (bool) (bool) $ Comp (Prod bool bool) (Prod bool bool)  $ Comp (Prod bool bool) (Prod bool bool) ty
+              in (iso,isoType)
+
 --For instance, an oracle implementing a constant function on 2 bits could be built as::
 oracleConstant3Bits :: (Iso,T)
 oracleConstant3Bits = let
@@ -625,6 +638,30 @@ hadTensorIHp = let  ett = Val tt
 
                     ty = Iso (Prod bool bool) (Prod bool bool)
                     in (clau,ty)
+
+
+hadAllButOne :: (Iso,T)
+hadAllButOne =let ett = Val tt
+                  eff = Val ff
+                  --(myId,_) = idIso
+                  v1 = InjR (PairV (Xval "x") (InjL EmptyV))
+                  v2 = InjR (PairV tt (Xval "y"))
+                  v3 = InjR (PairV ff (Xval "y"))
+
+                  ePair1 = Val $ InjR $ PairV (Xval "z") (InjL EmptyV)
+                  ePair2 = Val $ InjR $ PairV tt (Xval "w")
+                  ePair3 = Val $ InjR $ PairV ff (Xval "w")
+
+                  comb1 = buildOneZeroCombs [ePair1,ePair1,ePair1] 0 0
+                  comb2 = Combination (AlphaVal (0:+0) ePair2) $ Combination (AlphaVal alpha ePair2) (AlphaVal alpha ePair3)
+                  comb3 = Combination (AlphaVal (0:+0) ePair2) $ Combination (AlphaVal alpha ePair2) (AlphaVal beta ePair3)
+                  e1 = LetE (Xprod "z") (IsoVar "id") (Xprod "x") comb1
+                  e2 = LetE (Xprod "w") (IsoVar "f") (Xprod "y") comb2
+                  e3 = LetE (Xprod "w") (IsoVar "f") (Xprod "y") comb3
+                  clau = Clauses [(v1,e1),(v2,e2),(v3,e3)]
+                  iso = Lambda "id" $ Fixpoint "f" clau
+                  ty = Comp bool bool $ Iso (Rec bool) (Rec bool)
+                  in (iso,ty)
 
 -- groverExOracle :: (Iso,T)
 -- groverExOracle = let (mynot,_) = not1

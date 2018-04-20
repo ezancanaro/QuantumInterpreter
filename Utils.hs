@@ -121,48 +121,21 @@ fl (Left x) = x
 fr:: Either a b -> b
 fr (Right x) = x
 
--- rebuildAsPlusMinus :: E -> E
--- rebuildAsPlusMinus (Combination e1 e2)
---   | AlphaVal a e1' <- e1,
---     AlphaVal b e2' <- e2 =  let x = AlphaVal alpha plusS
---                                 y = AlphaVal alpha minusS
---                                 z = AlphaVal beta minusS
---                                 e1'' = AlphaVal a (Combination x y)
---                                 e2'' = AlphaVal b (Combination x z)
---                                 in Combination e1'' e2''
---
+grabPatternTypesFromAnnotation :: (Iso,T) -> Delta
+grabPatternTypesFromAnnotation (Clauses isoDefs, (Iso a _)) = let (pats,_) = listsFromPairs isoDefs
+                                                                in concat $ map (matchPatternWithAnnotation a) pats
+grabPatternTypesFromAnnotation (Lambda _ iso, (Comp _ _ t)) = grabPatternTypesFromAnnotation (iso,t)
+grabPatternTypesFromAnnotation (Fixpoint _ iso,t) = grabPatternTypesFromAnnotation (iso,t)
 
-
--- isStructurallyRecursive :: String -> Iso -> Bool
--- isStructurallyRecursive f (Clauses []) = True
--- isStructurallyRecursive f (Clauses ((v,e):veList)) = case v of
---                                                         InjL EmptyV  -> not $ isfFreeVariable f e
---                                                         PairV (InjL v) _ -> not $ isfFreeVariable f e
---                                                         InjR (PairV h t) ->
---
--- isfFreeVariable :: String -> E -> Bool
--- isfFreeVariable f (Val v) = False
--- isfFreeVariable f (LetE p iso p e) = isfFreeVarInIso f iso
--- isfFreeVariable f (Combination e1 e2)
---   | isfFreeVariable f e1 == True = True
---   | otherwise = isfFreeVariable f e2
--- isfFreeVariable f (AlphaVal a e) = isfFreeVariable f e
---
---
--- isfFreeVarInIso :: Sring -> Iso -> Bool
--- isfFreeVarInIso f (IsoVar f')
---   | f == f' = True
---   | otherwise = False
--- isfFreeVarInIso f (Lambda s iso)
---   | f == s = False
---   | otherwise = isfFreeVarInIso f iso
--- isfFreeVarInIso f (App iso1 iso2)
---   | isfFreeVarInIso f iso1 == True = True
---   | otherwise = isfFreeVarInIso f iso2
--- isfFreeVarInIso f (Fixpoint s iso)
---   | f == s = False
---   | otherwise = isfFreeVarInIso f iso
--- isfFreeVarInIso _ = False
+matchPatternWithAnnotation :: A -> V -> Delta
+matchPatternWithAnnotation _ (EmptyV) = []
+matchPatternWithAnnotation a (Xval s)  = (s,a):[]
+matchPatternWithAnnotation (Sum a b) (InjL v)  = matchPatternWithAnnotation a v
+matchPatternWithAnnotation (Sum a b) (InjR v)  = matchPatternWithAnnotation b v
+matchPatternWithAnnotation (Prod a b) (PairV v1 v2) = matchPatternWithAnnotation a v1 ++ matchPatternWithAnnotation b v2
+matchPatternWithAnnotation (Rec a) (InjR (PairV v1 v2)) = matchPatternWithAnnotation a v1 ++ matchPatternWithAnnotation (Rec a) v2
+matchPatternWithAnnotation (Rec a) (InjL EmptyV) = []
+matchPatternWithAnnotation a v = error $ "Cannot associate value: " ++ show v ++ "with type annotation: " ++ show a
 
 getLinearAlphas :: E -> [Alpha]
 getLinearAlphas (Combination (AlphaVal a v1) v2) = a : getLinearAlphas v2
