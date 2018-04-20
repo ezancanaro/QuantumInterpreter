@@ -369,6 +369,24 @@ quantumWalk = let (walk,walkType) = walkTIso
                               ++ "\n\n" ++ show walki
 
 
+testRecHad ::String
+testRecHad = let
+               (recHad,tyrHad) = hadAllButOne
+               (myId,_) = idIso
+               delta = grabPatternTypesFromAnnotation (recHad,tyrHad)
+               typeC = typeCheck delta [] recHad tyrHad
+               input = boolLists [False,True,True,True]
+               check = Omega (App recHad myId) input
+               result = startEval check
+               inverseId = invertIso myId
+               inverseRHad = invertIso recHad
+               checkInv = Omega (App inverseRHad inverseId) $ ValueT result
+               resultInv = startEval checkInv
+               in "Had^N of N+1 bits:: \n" ++ show recHad ++ "Typechecks to: " ++ show typeC
+                    ++ "\n Applied with input: " ++ show input ++ "\n\n" ++ show result
+                      ++ "\n-------------\nInverted iso: \n" ++ show inverseRHad ++ "\n\n Applied to previous result:\n\n" ++ show resultInv
+
+
 --0.354~<InjL_(),
       --  0.707~<InjL_(),
           --  0.707~<InjL_(),1~InjL_()>
@@ -398,6 +416,8 @@ typecheckProgram psi ((iso,ty):isoDefs) (isoName:names) = let delta = grabPatter
                                               if typeCheck delta psi iso ty == ty
                                                 then typecheckProgram ((isoName,ty):psi) isoDefs names
                                                 else False
+
+
 
 --
 -- startEval :: [(Iso,T)] -> Term -> V
@@ -438,7 +458,7 @@ testf e1 e2
 -- Loops to allow one to choose a pre-defined example.
 main = do
 
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms | deutsch | grover | next | walk --Input quit to stop.\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms | deutsch | grover | next | walk | recHad || quit\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -456,6 +476,7 @@ main = do
           "walk" -> putStr quantumWalk
           "ffff" -> putStr ffff
           "gg" -> putStr gg
+          "recHad" -> putStr testRecHad
           otherwise -> putStr "Undefined Function...\n\n"
         -- putStr "\n\n\n"
       --  putStr myt
