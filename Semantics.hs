@@ -302,8 +302,10 @@ findFixedPoint f i (Evalue e) fix = findFixedPoint f i v fix
                                       where v = catchMaybe $ extractValue e
 findFixedPoint f i v iso = error $ "Cannot find fixPoint when applying to value: " ++ show v --Just in case of unexpected behavior. Should never arise.
 
---Extracts values from a linear combination.
---A linear combination of lists will have every list be of the same size, so this should work properly.
+--  Looks at values from a linear combination in order to build the unfolded recursive Iso.
+-- A linear combination of lists will have every list be of the same size?? I don't think so. If size can vary, this implementation is not sufficient. Otherwise, this is fine.
+-- Being the former, we need to look inside the combinations, using the longest list as the fixedPoint of the iso.
+-- A second option is getting a different unfolded iso for each list, getting performance to tank hard.
 extractValue :: E -> Maybe V
 extractValue (Val (Evalue e)) = extractValue e
 extractValue (Val v) = Just v

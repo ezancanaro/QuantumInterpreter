@@ -282,10 +282,11 @@ testGrover = let (gOracle,ty) = simplifiedGroverOracle
                  lastStep = Omega had34 $ ValueT resultCondPhaseShift
                  lastR = startEval lastStep
 
-                 in "simplifiedGrover\n " ++ show gr3-- ++ "\n\n Typechecks to:  " ++ show myT
-                    ++ "\n\nApplied to: " ++ show preparedState4 ++ "\n\n\t Results in:\n" ++ show oracleResult3
-                      ++ "\n\nHad n:: \n" ++ show resultHadTransf3 ++ "\n\n ConditionallyShifted: " ++ show resultCondPhaseShift3
-                        ++ "\nFinal HadN application: \n\n" ++ show lastR
+                 in "This iso needs to be properly verified. Not sure if it was built correctly."
+                     ++ "simplifiedGrover\n " ++ show gr3-- ++ "\n\n Typechecks to:  " ++ show myT
+                      ++ "\n\nApplied to: " ++ show preparedState4 ++ "\n\n\t Results in:\n" ++ show oracleResult3
+                        ++ "\n\nHad n:: \n" ++ show resultHadTransf3 ++ "\n\n ConditionallyShifted: " ++ show resultCondPhaseShift3
+                          ++ "\nFinal HadN application: \n\n" ++ show lastR
 
 
 myt :: String
@@ -375,7 +376,7 @@ testRecHad = let
                (myId,_) = idIso
                delta = grabPatternTypesFromAnnotation (recHad,tyrHad)
                typeC = typeCheck delta [] recHad tyrHad
-               input = boolLists [False,True,True,True]
+               input = boolLists [False,True,True]
                check = Omega (App recHad myId) input
                result = startEval check
                inverseId = invertIso myId
