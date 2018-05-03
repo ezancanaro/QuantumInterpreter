@@ -219,23 +219,39 @@ testOracle = let eTT = Val tt --ExtendedValue true
                  checkNew = Omega hadTensID (ValueT pairTest)
                  resultNew = startEval checkNew
 
+                 orac = (App oracle mynot)
+                 (had,_) = hadIso
+                 (dst,tyDst) = deutsch
+                 delta = grabPatternTypesFromAnnotation (dst,tyDst)
+                 typeC = typeCheck delta [] dst tyDst
+                 input = ValueT $ PairV tt ff
+                 checkDst = Omega (App dst (App had (App orac hadTensID))) input
+                 resultDst = startEval checkDst
+                 inverse = invertIso (App dst (App had (App orac hadTensID))) -- Inversion is not working properly yet. Need to check it.
+                 checkInv = Omega inverse $ ValueT resultDst
+                 resultInv = startEval checkInv
+
                  -- te = equivalentStates (Val resultNew)
                  -- te' = tensorProductRepresentation te
 
-                 in "2qubtis Oracle, with f(x) being NOT x::\n " ++ show oracle ++ "\t" ++ show pair ++ "\n\n Evalued to:\n\t"
-                      ++ show (result)
-                        -- ++ "\n\nTeste:: " ++ show test
-                         ++ "\n\n   Applied again to:" ++ show result ++ " \n\n\t" ++ show result2
-                          ++ "DeutschJosza first-step:: " ++ show deutschJozsa ++ "\n\n\t" ++ show result3
-                            ++ "\n\nApplying Had to x:\n" ++ show result4
-                              -- ++ "\n\n TensorRep : " ++ show tensor4
-                              ++ "\n-------------------------------\nApplying Had to the first qubit in " ++ show pairTest
-                                ++ " :\n" ++ show result5
-                                  -- ++ "\n-----------------------------------------\n"
-                                  --   ++ "Applying step1-DeutschJosza with ID results in:: \n" ++ show resultID
-                                  --     ++ " \n\nThen step2: \n" ++ show resultID2
-                                            ++ "_____\n\nUsing hadTensorId:\n" ++ show hadTensID ++ "\n at pair: " ++ show pairTest
-                                              ++ "\n\t\tresults in:\n" ++ show resultNew
+                 in "Deutsch's algorithm with balanced oracle: \n" ++ show dst ++ "\nTypechecks to: " ++ show typeC
+                      ++ "\n\nApplied to initial state: " ++ show input ++ "\n\n" ++ show resultDst
+                      --  ++"\n---------------\n\n Inverted iso: \n" ++ show inverse ++ "Applied to previous result:\n\n" ++ show resultInv
+
+                  -- "2qubtis Oracle, with f(x) being NOT x::\n " ++ show oracle ++ "\t" ++ show pair ++ "\n\n Evalued to:\n\t"
+                  --     ++ show (result)
+                  --       -- ++ "\n\nTeste:: " ++ show test
+                  --        ++ "\n\n   Applied again to:" ++ show result ++ " \n\n\t" ++ show result2
+                  --         ++ "DeutschJosza first-step:: " ++ show deutschJozsa ++ "\n\n\t" ++ show result3
+                  --           ++ "\n\nApplying Had to x:\n" ++ show result4
+                  --             -- ++ "\n\n TensorRep : " ++ show tensor4
+                  --             ++ "\n-------------------------------\nApplying Had to the first qubit in " ++ show pairTest
+                  --               ++ " :\n" ++ show result5
+                  --                 -- ++ "\n-----------------------------------------\n"
+                  --                 --   ++ "Applying step1-DeutschJosza with ID results in:: \n" ++ show resultID
+                  --                 --     ++ " \n\nThen step2: \n" ++ show resultID2
+                  --                           ++ "_____\n\nUsing hadTensorId:\n" ++ show hadTensID ++ "\n at pair: " ++ show pairTest
+                  --                             ++ "\n\t\tresults in:\n" ++ show resultNew
                                               --  ++ "\n\n Equivalent to: " ++ show te ++ "\nwith tensor:\n" ++ show te'
 --Sum -1^f(x) |x>|-> ----->  (beta tt + alpha ff)|->
 -- f(tt)=ff

@@ -467,8 +467,7 @@ substitution :: [String] -> String -> Iso ->Iso -> Maybe Iso
 substitution boundVars f omega2 (IsoVar f') = if f' == f && not (f `elem` boundVars)
                                               then Just omega2
                                               else Nothing
-substitution boundVars f omega2 (Lambda g iso) = Just $ Lambda g $ testSubs iso $ substitution (g:boundVars) f omega2 iso --Need to check if f is freeVariable?
-
+substitution boundVars f omega2 (Lambda g iso) = Just $ Lambda g $ testSubs iso $ substitution (g:boundVars) f omega2 iso 
 substitution boundVars f omega2 (App iso1 iso2) = Just $ App (testSubs iso1 $ substitution boundVars f omega2 iso1)
                                                     (testSubs iso2 $ substitution boundVars f omega2 iso2)
 substitution boundVars f omega2 (Clauses listVe) = Just $ Clauses $ substitutionInClauses boundVars listVe f omega2
@@ -687,6 +686,7 @@ swapCombinationVals vlist (Combination e1 e2) i = let e' =  pairAlphasWithValues
                                                       in (v',remakeCombination swappedE)
 swapCombinationVals vlist (LetE p1 iso p2 e') i = let (v',newE) = swapCombinationVals vlist e' i
                                                       in (v', LetE p1 iso p2 newE)
+swapCombinationVals vlist (AlphaVal (1:+0) e) i = (toValue e, AlphaVal (1:+0) (Val $ head vlist)) -- For this to occur, iso must be defined as a single clause.
 
 toValue :: E -> V
 toValue (Val v) = v
@@ -717,6 +717,7 @@ rebuild :: E -> [Alpha] -> E
 rebuild (Combination e1 e2) (alist) = remakeCombination a'e
                                         where a'e = swapAlphas alist $ pairAlphasWithValues False (Combination e1 e2)
 rebuild (LetE p1 iso p2 e') (alist) = LetE p1 iso p2 $ rebuild e' alist
+rebuild (AlphaVal (1:+0) e) (alist) = AlphaVal (1:+0) e
 rebuild _ _ = error "Right-hand side of clauses Are neither a Combination nor a LetExpression"
 
 swapAlphas :: [Alpha] -> [(Alpha,E)] -> [(Alpha,E)]

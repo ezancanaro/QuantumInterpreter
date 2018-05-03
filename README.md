@@ -42,7 +42,8 @@ Defining extra examples can be quite cumbersome without a parser, but the *Isode
 2. Define better examples, preferably with a complete program.
 2. Implement a generic starting loop function, that can receive a list of iso definitions and run the typechecker and evaluator from there.
 3. Improve the error messages given when typechecking. Current ones are more suited for aiding the development of the actual typechecker than for providing helpfull information to the user.
-4. Implement variable scoping/a way of dealing with variable capturing in higher-order isos.
+4. Implement variable scoping/a way of dealing with variable capturing in higher-order isos. - Done for isos, should not be a problem on value variables but need to test it a bit more.
+5. Read up on conditional importing modules, so that it can use the same main.hs for both monadic and pure typecheckers.
 
 A couple of exensions could be cool:
 

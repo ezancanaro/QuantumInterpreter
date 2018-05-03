@@ -141,16 +141,6 @@ testHadHad =  let (had,isoType) = hadIso
                     ++  "\n\nEvals to:\n\t " ++ show (applicativeContext check)
 
 
-testPlus :: String
-testPlus = let (plusIso,isoType) = plus
-               delta = []
-               psi = []
-               x = intToPeanoT 2
-               y = intToPeanoT 3
-               xy = PairTerm x y
-               check = Omega plusIso xy
-               in "Plus:: " ++ show plusIso ++ "\n with args: " ++ show xy
-                    ++"\n\n\n Evals: " ++ show (applicativeContext check) -- Will work because recursion is only defined on lists
 
 combinationTest :: String
 combinationTest = let a1 = alpha * alpha

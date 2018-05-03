@@ -106,20 +106,33 @@ addToContext delta (Xprod x) a = case (lookup x delta) of
                                                    in Right $ (x,a) : delta'
 addToContext _ (PairP p1 p2) _ = Left $ ProdError "Not a product Type" (PairP p1 p2)
 
+-- Bypass the need to build a matrix for isos defined in the classical setting. Could probably do with a smarter version of this.
+oneZeroes :: [Alpha] -> Bool
+oneZeroes [] = True
+oneZeroes (h:t)
+  | h /= 0 && h/= 1 = False
+  | otherwise = oneZeroes t
 
+oZ :: [[Alpha]] -> Bool
+oZ [] = True
+oZ (h:t)
+  | not (oneZeroes h) = False
+  | otherwise = oZ t
 
 testUnit::[E]->Bool
 testUnit = isUnitary . getLinearTerms
 
 isUnitary :: [[Alpha]] -> Bool
-isUnitary lists = let mat =  debug(show lists ++ "\n")
+isUnitary lists
+  | oZ lists = True
+  | otherwise   =  let mat =  debug(show lists ++ "\n")
                               fromLists lists --Create matrix from lists
-                      conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
-                      inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
+                       conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
+                       inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
                                     wrap $ inverse mat --The inverse matrix
-                      in if (conjugateTranspose) == inverseMat then debug("InverseMat: \n" ++ show inverseMat ++ "\n")
+                       in if (conjugateTranspose) == inverseMat then debug("InverseMat: \n" ++ show inverseMat ++ "\n")
                                                                             True --Test unitarity
-                         else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
+                          else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
                                 False
 
 
