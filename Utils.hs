@@ -108,7 +108,7 @@ bottomValue (Combination e1 e2) = bottomValue e1
 bottomValue (AlphaVal alpha e) = bottomValue e
 
 
--- Function used to make sure all tuples of qubits are represented the same on the examples.
+-- Function used to make sure all tuples of qubits are represented the same on the examples. Mostly used to make sure examples are visually coherent with each other
 -- Not used directly by the interpreter, since I'm not sure if there's a semantic reason to differentiate (PairV (Pair v1 v2) v3) from (PairV v1 (PairV v2 v3)) in the whole language.
 normalizeTuple :: V -> V
 normalizeTuple (PairV (PairV v1 v2) v3) = PairV v1 (normalizeTuple (PairV v2 v3))

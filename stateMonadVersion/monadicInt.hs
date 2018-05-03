@@ -158,6 +158,7 @@ orthogonalDecomposition delta (Prod a b) od patterns = let s = breakPairs patter
                                                                 then Left $ OrthogonalDecomp "Clausess dont make an orthogonal Decomposition!" patterns
                                                                 else Right patterns
 orthogonalDecomposition delta a od [] = Left $ OrthogonalDecomp "Cannot generate Orthogonal Decomposition:!" []
+
 --Definition of orthogonalDecomposition for extendedValues: OD(ExtVal) is true whenever OD(Val(ExtVal)) is true.
 extOrthogonalDecomposition :: Delta -> B -> OD -> [E] ->Either TypeErrors OD
 extOrthogonalDecomposition delta b od eList = orthogonalDecomposition delta b od $ map bottomValue eList

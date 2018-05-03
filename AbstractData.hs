@@ -111,7 +111,7 @@ instance Show (V) where
 
 instance Show (E) where
   show (Val v) = show v
-  show (LetE p iso p2 e) = "LetE "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
+  show (LetE p iso p2 e) = "Let "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
   show (Combination v1 v2)
       | show v1 == "" = show v2
       | show v2 == "" = show v1
@@ -140,7 +140,9 @@ instance Show (Term) where
   show (EmptyTerm) = "()"
   show (XTerm s) = s
   show (InjLt t) = "InjL_" ++ show t
-  show (InjRt (PairTerm t1 t2)) = "InjRt_[" ++ show t1 ++ " : " ++ show t2 ++ "]"
+  show (InjRt (PairTerm t1 t2))
+    | InjLt EmptyTerm <- t2 = "Rt_[" ++ show t1 ++ " : " ++ "[]" ++ "]"
+    | otherwise = "Rt_[" ++ show t1 ++ " : " ++ show t2 ++ "]"
   show (InjRt t) = "InjR_" ++ show t
   show (PairTerm t1 t2) = "<" ++ show t1 ++ "," ++ show t2 ++ ">"
   show (Omega iso t1) = show iso ++ " " ++ show t1

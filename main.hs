@@ -379,11 +379,12 @@ quantumWalk = let (walk,walkType) = walkTIso
                   check5 = Omega builtIso $ ValueT result4
                   result5 = startEval check5
                   (walki,_) = walkTransform
+                  --
                   in "Quantum Walk transformer T: \n" ++ show walk ++ "\nTypechecks to: " ++ show typeC
-                        -- ++ "\n\nApplied to: " ++ show valTest ++ " :: \n\n" ++ show result
-                          ++ "\n\nApplied to: " ++ show v3 ++ " :: \n\n" ++ show result3
-                            ++ "\n\nHad x Ihp :\n" ++ show result4 ++ "\n Applied to T again: \n" ++ show result5
-                              ++ "\n\n" ++ show walki
+                         ++ "\n\nApplied to: " ++ show valTest ++ " :: \n\n" ++ show result
+                        --  ++ "\n\nApplied to: " ++ show v3 ++ " :: \n\n" ++ show result3
+                          --  ++ "\n\nHad x Ihp :\n" ++ show result4 ++ "\n Applied to T again: \n" ++ show result5
+                            --  ++ "\n\n" ++ show walki
 
 
 testRecHad ::String
