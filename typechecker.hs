@@ -1,4 +1,4 @@
-module Quantum where
+module Typechecker where
 import AbstractData
 import Utils
 --Pure version of the Typechecker ..

@@ -1,5 +1,5 @@
 module Main where
-import Quantum
+import Typechecker
 import AbstractData
 import Utils
 import Semantics
