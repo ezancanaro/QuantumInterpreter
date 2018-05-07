@@ -37,6 +37,12 @@ All of the pre-built examples can be run by compiling the code (E.g.: ghc main.h
 
 Defining extra examples can be quite cumbersome without a parser, but the *Isodefinitons.hs* file coupled with the test functions should provide enough guidelines for the moment. Shoot me an e-mail and I'll be happy to talk about any questions.
 
+Some notes on current representation:
+  - Boolean values are under type 1+1 and are represented by values InjL EmptyV and InjR EmptyV for 0 and 1 respectively.
+  - Strings of bits can be represented either as boolean tuples: PairV (b1) (PairV (b2) (b3)); OR as lists of Bools: InjR (PairV b1 (InjR (PairV (b2) InjR (PairV b3 [])))), where InjR acts as the list constructor ':'. (There's a function in Utils.hs to transform a Haskell [Bool] into a list in the language's abstract syntax).
+  - The same can be said for qubits and their amplitudes, even in superpositions, both representation of qubit strings are valid because of the algebraic properties adopted, as long as one keeps the amplitudes of the constructors in the list always 1. Deutsch example uses tuples, while recHad uses lists.
+
+
 # To Do
 1. Build a syntax parser for the language.
 2. Define better examples, preferably with a complete program.

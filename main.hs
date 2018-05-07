@@ -362,13 +362,20 @@ quantumWalk = let (walk,walkType) = walkTIso
                   p = isoReducing prev -- Should not really be needed if we can build the iso this way.
                   next = (App (App nextSign nextInt) prevInt)
                   n = isoReducing next
-                  builtIso = App (App walk p) n
+                  builtIso =  (App (App walk p) n)
                     --App walk (App prevSign (App nextSign (App nextInt (App prevInt (App nextInt prevInt)))))
                   v = fr $ buildInt 0 4 't'
                   v2 = PairTerm (ValueT tt) v
                   valTest = PairTerm (ValueT tt) v2
                   check = Omega builtIso valTest
                   result = startEval check
+
+                  inv' = invertIso walk
+                  invP = invertIso p --Mostly for outputting the individual inversion of the isos.
+                  invN = invertIso n
+                  inv = App (App inv' invP) invN -- Could probably invert the application itself (App (App walk p) n), but it would not provide readable output
+                  checkInv = Omega inv $ ValueT result
+                  resultInv = startEval checkInv
 
                   (had,_) = hadIso
                   (hadIdHP,_) = hadTensorIHp
@@ -384,6 +391,7 @@ quantumWalk = let (walk,walkType) = walkTIso
                   --
                   in "Quantum Walk transformer T: \n" ++ show walk ++ "\nTypechecks to: " ++ show typeC
                          ++ "\n\nApplied to: " ++ show valTest ++ " :: \n\n" ++ show result
+                            ++ "\n\nInverse Iso: \n" ++ show inv' ++ "\n Applied to previous result:\n\t" ++ show resultInv
                         --  ++ "\n\nApplied to: " ++ show v3 ++ " :: \n\n" ++ show result3
                           --  ++ "\n\nHad x Ihp :\n" ++ show result4 ++ "\n Applied to T again: \n" ++ show result5
                             --  ++ "\n\n" ++ show walki

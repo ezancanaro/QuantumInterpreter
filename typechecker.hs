@@ -276,7 +276,7 @@ orthogonalDecomposition delta (Rec a) od (InjR (PairV v vtail) : pat) = let vals
                                                                             od2 = wrap $ orthogonalDecomposition delta (Rec a) od pat
                                                                         in Right $ od1 ++ od2
 orthogonalDecomposition delta a od [] = Left $ OrthogonalDecomp "Cannot generate Orthogonal Decomposition:!" []
-orthogonalDecomposition delta a od l = error $ "D" ++ show delta ++ show a ++ show l
+orthogonalDecomposition delta a od l = error $ "Unspecified behavior for orthogonal Decomposition on arguments:\n" ++ show delta ++ show a ++ show l
 
 decomposeList ::  V -> [V]
 decomposeList (InjL EmptyV) = []
