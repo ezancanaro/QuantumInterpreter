@@ -18,7 +18,7 @@ A problem arises with the removal of the ParallelListComp pragma, used on a list
 
 # Description
 
-This project includes 2 implementations of a Typechecker for a functional reversible language with Quantum Control. The first version is implemented by the use of pure functions, threading the typing contexts throughout the function calls.
+This project includes 2 implementations of a Typechecker for a functional reversible language with Quantum Control [arxiv paper ](https://arxiv.org/abs/1804.00952). The first version is implemented by the use of pure functions, threading the typing contexts throughout the function calls.
 
 The second version was built relying on the State Monad to keep our contexts consistent. Both versions show the exact same behaviour, being complemented by the same evaluation routines in file Semantics.hs
 
@@ -35,7 +35,7 @@ In order to us the monadic version: Having **stateMonadVersion** folder as worki
 
 All of the pre-built examples can be run by compiling the code (E.g.: ghc main.hs) and running the resulting executable file. A small text menu will be provided for selecting an example to be ran. It can also be ran iteratively via ghci by calling *main* after loading all modules.
 
-Defining extra examples can be quite cumbersome without a parser, but the *Isodefinitons.hs* file coupled with the test functions should provide enough guidelines for the moment.
+Defining extra examples can be quite cumbersome without a parser, but the *Isodefinitons.hs* file coupled with the test functions should provide enough guidelines for the moment. Shoot me an e-mail and I'll be happy to talk about any questions.
 
 # To Do
 1. Build a syntax parser for the language.
@@ -48,5 +48,11 @@ Defining extra examples can be quite cumbersome without a parser, but the *Isode
 A couple of exensions could be cool:
 
   Implement the evaluator step-by-step, allowing the exploration of the terms structure along the whole proccess. Ideally, this would allow one to step both forwards and backwards in the evaluation.
+
+  Investigate performance of the interpreter, optimizing functions and using parallelism to solve some known bottlenecks:  
+  - The evaluation of linear combinations applied to isos. (Should be easy to make them run simultaneously)
+  - Building the matrices for typechecking isos with more clauses. (Optimize code instead of using Data.Matrix ??)
+  - Iso inversion.
+  - Application of the algebraic Properties and the function dubbed TensorProuctRep (Combinations could definitely run in parallel, but would need refactoring)
 
   A nice undertaking would be, after having a working parser, moifying the evaluation functions so that they can keep track of the abstract data being evaluated in relation to it's syntactical counterpart, allowing us to point specifically to the code line generating an error, for instance.
