@@ -126,13 +126,13 @@ isoTypeCheck delta psi (Clauses list) (Iso a b) = let vList = map fst list
                                                       vTypes = wrap $ valueTypes delta vList a
                                                       eTypes = debug("Values:" ++ show vTypes)
                                                                 wrap $ extendedValueTypes delta psi eList b
-                                                      odA = wrap $ orthogonalDecomposition delta a [] vList
-                                                      odB = wrap $ extOrthogonalDecomposition delta b [] eList
+                                                      odA = orthogonalDecomposition delta a [] vList
+                                                      odB = extOrthogonalDecomposition delta b [] eList
                                                       unitary = testUnit eList
-                                                  in if (eTypes == b && vTypes == a) then
+                                                  in if (checkODs odA odB a b) && (eTypes == b) && (vTypes == a) then
                                                         if(unitary) then Right $ Iso a b --Separate the tests to specify the error.
                                                         else Left $ IsoError "Not a unitary Matrix!" "\n" (show (Clauses list))
-                                                      else Left $ IsoError "Iso Clausess dont match type:" (show (Clauses list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
+                                                     else Left $ IsoError "Iso Clausess dont match type:" (show (Clauses list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
 --Typecheck Fixpoints here.
 isoTypeCheck delta psi (Fixpoint f iso) t = if fixpointTerminates psi (Fixpoint f iso) -- Not implemented.
                                               then Right $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f t) iso t
@@ -141,6 +141,13 @@ isoTypeCheck delta psi (Fixpoint f iso) t = if fixpointTerminates psi (Fixpoint 
                                 --Right (Comp a b $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f (Iso a b)) iso (Comp a b t))
 --If typeChecking fails return a Left value with an error.
 isoTypeCheck _ _ iso t = Left $ IsoError "Could not match supplied iso" (show iso) (show t)
+
+
+checkODs ::  Either TypeErrors OD -> Either TypeErrors OD -> A -> B -> Bool
+checkODs (Right v) (Right e) _ _ = True
+checkODs (Left v) (Right e) t1 _ = error $ "Values are not an OrthogonalDecomp of " ++ show t1 ++ ":\n\t" ++ show v
+checkODs (Right v) (Left e) t1 t2 = error $ "Expressions are not an OrthogonalDecomp of " ++ show t2 ++ ":\n\t" ++ show e
+checkODs (Left v) (Left e) t1 t2 = error $ "Values nor Expressions are not an OrthogonalDecomp of " ++ show t1 ++ ","++ show t2++":\n\t" ++ show v ++ "\n\t" ++ show e
 
 --Check fixpoint termination...
 fixpointTerminates :: Psi -> Iso -> Bool
@@ -263,7 +270,19 @@ orthogonalDecomposition delta (Prod a b) od patterns = let s = breakPairs patter
                                                            in if freeValIntersects freeValsV1 freeValsV2
                                                                 then Left $ OrthogonalDecomp "Clausess dont make an orthogonal Decomposition!" patterns
                                                                 else Right patterns
+orthogonalDecomposition delta (Rec a) od (InjL EmptyV : pat) = Right $ [InjL EmptyV] ++ (wrap $ orthogonalDecomposition delta (Rec a) od pat)
+orthogonalDecomposition delta (Rec a) od (InjR (PairV v vtail) : pat) = let vals = decomposeList (InjR (PairV v vtail))
+                                                                            od1 = wrap $ orthogonalDecomposition delta a od vals
+                                                                            od2 = wrap $ orthogonalDecomposition delta (Rec a) od pat
+                                                                        in Right $ od1 ++ od2
 orthogonalDecomposition delta a od [] = Left $ OrthogonalDecomp "Cannot generate Orthogonal Decomposition:!" []
+orthogonalDecomposition delta a od l = error $ "D" ++ show delta ++ show a ++ show l
+
+decomposeList ::  V -> [V]
+decomposeList (InjL EmptyV) = []
+decomposeList (InjR (PairV v1 vtail)) = v1 : decomposeList vtail
+
+
 --Definition of orthogonalDecomposition for extendedValues: OD(ExtVal) is true whenever OD(Val(ExtVal)) is true.
 extOrthogonalDecomposition :: Delta -> B -> OD -> [E] ->Either TypeErrors OD
 extOrthogonalDecomposition delta b od eList = orthogonalDecomposition delta b od $ map bottomValue eList
@@ -298,6 +317,7 @@ getSndFromPair (PairV p1 p2) = p2
 
 freeValueVariables :: [V] -> [String]
 freeValueVariables [] = []
+freeValueVariables ((EmptyV):values) = freeValueVariables values
 freeValueVariables ((Xval x):values) = x : freeValueVariables values
 freeValueVariables ((InjL v):values) = freeValueVariables [v] ++ freeValueVariables values
 freeValueVariables ((InjR v):values) = freeValueVariables [v] ++ freeValueVariables values

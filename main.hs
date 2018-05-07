@@ -323,6 +323,7 @@ myt = let v1 = AlphaVal alpha $ Val $ PairV tt (Evalue $ AlphaVal (1:+0) ttE)
           tensorC = tensorProductRep (Evalue c2)
           in "V: " ++ show c2 ++ " \n\n Tensor:\n" ++ show tensorC
 
+-- Simple function to get the n+1 on 4 bits integers. Used 4 bits to save on evaluation time of longer strings of bits.
 nextInt4 :: String
 nextInt4 = let (nextInt,ty) = isoNext
                (prevInt,tyPrev) = isoPrevious
@@ -348,6 +349,7 @@ nextInt4 = let (nextInt,ty) = isoNext
                           ++ "\n\n SignedPrevious:\n" ++ show prSign ++ "\nType: " ++ show typessPr
                             ++ "\n\n Applied to: " ++ show v2 ++ "::\n" ++ show resultPr
 
+-- Uni-dimensional walk, where the direction bit can be set as a quantum state.
 quantumWalk :: String
 quantumWalk = let (walk,walkType) = walkTIso
                   (nextInt,_) = isoNext
@@ -387,6 +389,7 @@ quantumWalk = let (walk,walkType) = walkTIso
                             --  ++ "\n\n" ++ show walki
 
 
+-- Operation on a list of n bits, applies Had to the n-1 starting elements, and ID to the last. Acts recursively on the list.
 testRecHad ::String
 testRecHad = let
                (recHad,tyrHad) = hadAllButOne
@@ -476,7 +479,7 @@ testf e1 e2
 -- Loops to allow one to choose a pre-defined example.
 main = do
 
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot | terms | deutsch | grover | next | walk | recHad || quit\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | recHad || quit\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -484,7 +487,7 @@ main = do
           "map" -> putStr testMap
           "mapAcc" -> putStr testMapAcc
           "cnot" -> putStr testCnot
-          "terms" -> putStr testTerms
+          --"terms" -> putStr testTerms
           "a" -> putStr testNotEval
           "hadHad" -> putStr testHadHad
           "deutsch" -> putStr testOracle

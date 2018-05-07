@@ -644,21 +644,24 @@ hadAllButOne :: (Iso,T)
 hadAllButOne =let ett = Val tt
                   eff = Val ff
                   --(myId,_) = idIso
+                  empty = InjL EmptyV
                   v1 = InjR (PairV (Xval "x") (InjL EmptyV))
                   v2 = InjR (PairV tt (Xval "y"))
                   v3 = InjR (PairV ff (Xval "y"))
+
 
                   ePair1 = Val $ InjR $ PairV (Xval "z") (InjL EmptyV)
                   ePair2 = Val $ InjR $ PairV tt (Xval "w")
                   ePair3 = Val $ InjR $ PairV ff (Xval "w")
 
-                  comb1 = buildOneZeroCombs [ePair1,ePair1,ePair1] 0 0
-                  comb2 = Combination (AlphaVal (0:+0) ePair2) $ Combination (AlphaVal alpha ePair2) (AlphaVal alpha ePair3)
-                  comb3 = Combination (AlphaVal (0:+0) ePair2) $ Combination (AlphaVal alpha ePair2) (AlphaVal beta ePair3)
+                  cEmpty = buildOneZeroCombs [Val empty,Val empty,Val empty,Val empty] 0 0 -- Since they are 0 amplitude, doesnt matter whats the E
+                  comb1 = buildOneZeroCombs [Val empty,ePair1,ePair1,ePair1] 1 0
+                  comb2 = Combination (AlphaVal (0:+0) (Val empty)) $ Combination (AlphaVal (0:+0) ePair2) $ Combination (AlphaVal alpha ePair2) (AlphaVal alpha ePair3)
+                  comb3 = Combination (AlphaVal (0:+0) (Val empty)) $ Combination (AlphaVal (0:+0) ePair2) $ Combination (AlphaVal alpha ePair2) (AlphaVal beta ePair3)
                   e1 = LetE (Xprod "z") (IsoVar "id") (Xprod "x") comb1
                   e2 = LetE (Xprod "w") (IsoVar "f") (Xprod "y") comb2
                   e3 = LetE (Xprod "w") (IsoVar "f") (Xprod "y") comb3
-                  clau = Clauses [(v1,e1),(v2,e2),(v3,e3)]
+                  clau = Clauses [(empty,cEmpty),(v1,e1),(v2,e2),(v3,e3)]
                   iso = Lambda "id" $ Fixpoint "f" clau
                   ty = Comp bool bool $ Iso (Rec bool) (Rec bool)
                   in (iso,ty)
