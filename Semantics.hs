@@ -68,7 +68,8 @@ applicativeContext (Let p t1 t2) = let v = ValueT $ applicativeContext t1
 applicativeContext (ValueT v) = v
 
 reductionRules :: Term -> V
-reductionRules (Let p (ValueT v1) t2) = replace t2 $ catchMaybe $ matching  [] (productVal p) v1
+reductionRules (Let p (ValueT v1) t2) = replace t2 $ catchMaybe errorString $ matching  [] (productVal p) v1
+                                          where errorString = "Failed pattern-matching on let " ++ show p ++ " = " ++ show v1
 reductionRules (Omega (Clauses isoDefs) (ValueT (PairV v1 v2))) = if isVlinear (PairV v1 v2) --then error "Undefined"
                                                                     then reductionRules (Omega (Clauses isoDefs) (ValueT $ Evalue $ tensorProductRep (PairV v1 v2)))
                                                                     else applyValueToClauses (Clauses isoDefs) (ValueT (PairV v1 v2))
@@ -109,19 +110,40 @@ applyValueToClauses (Clauses isoDefs) (ValueT v) = let match = matchClauses isoD
 -- <a1+a2, <b1+b2,c1+c2> -><a1+a2, b1.c1<b1,c1> + b1.c2<b1,c2> + b2.c1<b2,c1> + b2.c2<b2,c2>
 --   -> a1.b1.c1<a1,<b1,c1> + a1.b1.c2<a1,<b1,c2> + a1.b2.c1<a1,<b2,c1> + a1.b2.c2<a1,<b2,c2> + a2....
 
+--The next two functions are needed due to unorganized implementation of tensorProductRep, in order to avoid infinite loops on evaluation.
+replaceVP :: V -> V -> V
+replaceVP new (EmptyV) = EmptyV
+replaceVP new (Xval "stupidVariable") = new
+replaceVP new (InjL v) = InjL $ replaceVP new v
+replaceVP new (InjR v) = InjR $ replaceVP new v
+replaceVP new (PairV v1 v2) = PairV (replaceVP new v1) (replaceVP new v2)
+replaceVP new (Evalue (Val v)) = replaceVP new v
+
+replaceVarForPair :: V -> E -> E
+replaceVarForPair v (Val v') = Val $ replaceVP v v'
+replaceVarForPair v (Combination e1 e2) = Combination (replaceVarForPair v e1) (replaceVarForPair v e2)
+replaceVarForPair v (AlphaVal a e) = AlphaVal a $ replaceVarForPair v e
 
 -- Taking a value pair containing at least one linear combination and translating it to the tensorProduct representation of states.
 -- This function is needed to allow pattern matching on applications such as: Cnot <0+1/sqrt(2),0+1/sqrt(2)>
 -- The example would be applied in the form: Cnot (1/sqrt(2)*1/sqrt(2)<0,0> + 1/sqrt(2)*1/sqrt(2)<0,1> + 1/sqrt(2)*1/sqrt(2)<1,0> + 1/sqrt(2)*1/sqrt(2)<1,1>)
 tensorProductRep :: V -> E
-tensorProductRep (PairV (Evalue e1) (PairV v1 v2)) = debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
-                                                      tensorProductRep (PairV (Evalue e1) tensorPair)
+tensorProductRep (PairV (Evalue e1) (PairV v1 v2)) = -- -- Infinite loop when PairV v1 v2 is normalized, but Evale e is not.
+                                                      if tensorPair /= PairV v1 v2
+                                                        then debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
+                                                                tensorProductRep (PairV (Evalue e1) tensorPair)
+                        --We substitute the pair for a variable to avoid infinite recursion choosing this same pattern in every evaluation. This is a stupid solution, hence the name of the variable.
+                                                        else replaceVarForPair (PairV v1 v2) $ tensorProductRep (PairV (Evalue e1) (Xval "stupidVariable"))
                                                         where tensorPair = removeEV $ Evalue $ tensorProductRep $ PairV v1 v2
 -- Defining this case for the sake of completeness, but the interpreter should default to representing tuples as <v,<v2,v3>>.
 -- Need to make this clear when building the parser to allow the <v1,v2,...,vn> syntax.
-tensorProductRep (PairV (PairV v1 v2) (Evalue e1) ) =debug ("tensor2:: " ++ show (PairV (PairV v1 v2) (Evalue e1)) ++ "\n")
-                                                      tensorProductRep (PairV tensorPair (Evalue e1))
-                                                        where tensorPair = removeEV $ Evalue $ tensorProductRep $ PairV v1 v2
+tensorProductRep (PairV (PairV v1 v2) (Evalue e1) ) = --debug ("tensor2:: " ++ show (PairV (PairV v1 v2) (Evalue e1)) ++ "\n")
+                                                        if tensorPair /= PairV v1 v2
+                                                          then debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
+                                                                tensorProductRep (PairV tensorPair (Evalue e1))
+                          --We substitute the pair for a variable to avoid infinite recursion choosing this same pattern in every evaluation. This is a stupid solution, hence the name of the variable.
+                                                          else replaceVarForPair (PairV v1 v2) $ tensorProductRep (PairV (Xval "stupidVariable") (Evalue e1))
+                                                          where tensorPair = removeEV $ Evalue $ tensorProductRep $ PairV v1 v2
 tensorProductRep (PairV (Evalue e1) (Evalue e2))
   | AlphaVal (1:+0) (Val v1) <- e1 = tensorProductRep (PairV v1 $ removeEV (Evalue e2)) --Casting of val to eval is really annoying in this iplementation.
   | AlphaVal (1:+0) (Val v2) <- e2 = tensorProductRep (PairV (removeEV (Evalue e1)) v2)
@@ -299,7 +321,7 @@ findFixedPoint f i (InjR (Evalue (Val v))) fix = findFixedPoint f i (InjR v) fix
 --Special case for applying a Linear Combination to a fixPoint.
 --Since amplitudes are not taken into consideration when pattern-matching values, we ignore them to create the proper unfolded function.
 findFixedPoint f i (Evalue e) fix = findFixedPoint f i v fix
-                                      where v = catchMaybe $ extractValue e
+                                      where v = catchMaybe ("Failed to find fixed point of " ++ show e)$ extractValue e
 findFixedPoint f i v iso = error $ "Cannot find fixPoint when applying to value: " ++ show v --Just in case of unexpected behavior. Should never arise.
 
 --  Looks at values from a linear combination in order to build the unfolded recursive Iso.
@@ -418,7 +440,8 @@ reduceE :: Sigma -> E -> V
 reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
                                         v' = applicativeContext (Omega iso (ValueT v))
                                         sig2 = debug("Pair: " ++ show p ++ "  Value:" ++ show v')
-                                                catchMaybe $ matching sigma (productVal p) v'
+                                                catchMaybe errorString $ matching sigma (productVal p) v'
+                                                  where errorString = "Failed to reduce LetE: " ++ show p ++ " = " ++ show v'
                                   in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
                                       reduceE sig2 e
 reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with context: " ++ show sigma)
@@ -467,7 +490,7 @@ substitution :: [String] -> String -> Iso ->Iso -> Maybe Iso
 substitution boundVars f omega2 (IsoVar f') = if f' == f && not (f `elem` boundVars)
                                               then Just omega2
                                               else Nothing
-substitution boundVars f omega2 (Lambda g iso) = Just $ Lambda g $ testSubs iso $ substitution (g:boundVars) f omega2 iso 
+substitution boundVars f omega2 (Lambda g iso) = Just $ Lambda g $ testSubs iso $ substitution (g:boundVars) f omega2 iso
 substitution boundVars f omega2 (App iso1 iso2) = Just $ App (testSubs iso1 $ substitution boundVars f omega2 iso1)
                                                     (testSubs iso2 $ substitution boundVars f omega2 iso2)
 substitution boundVars f omega2 (Clauses listVe) = Just $ Clauses $ substitutionInClauses boundVars listVe f omega2

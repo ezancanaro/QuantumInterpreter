@@ -6,7 +6,7 @@ import Data.Number.CReal
 
 --Debugging flag-
 doDebug = False
-          --True -- You honestly should not do it. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
+          --True -- Don't do it. Honestly. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
 
 
 --Making debug statements easier to use
@@ -95,9 +95,9 @@ wrap :: Show b => Either b a -> a
 wrap (Left err) = error (show err)
 wrap (Right val) = val
 
-catchMaybe :: Maybe a -> a
-catchMaybe (Just something) = something
-catchMaybe Nothing = error "Failure on a Maybe returning function" -- Not really descriptive of the error, I know.
+catchMaybe :: String -> Maybe a -> a
+catchMaybe s (Just something) = something
+catchMaybe s Nothing = error s -- Not really descriptive of the error, I know.
                                                     --Should update it to take an extra argument that can help identify the error.
 
 --Returns the bottom value from an Extended Value. (Val(e))

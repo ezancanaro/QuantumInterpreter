@@ -50,7 +50,7 @@ testMap =
       result' = startEval check'
       ccc = applicativeContext check'
   --    curious = tensorProductRep result'
-      in ( "\n Has Type: " ++ show (typeCheck delta psi map' isoType))
+      in ( "\n Map Had With Type: " ++ show (typeCheck delta psi map' isoType))
         ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show result
           ++ "\n\n Inverse Map: " ++ show inverseMap
             ++ "\n\n Evals to: " ++ show result'
@@ -183,6 +183,7 @@ tester = let eTT = Val tt --ExtendedValue true
              types = grabPatternTypesFromAnnotation (myIf,ifType)
              in --"Cnot:: " ++ show cnot ++ "  " ++ show pair ++  "\n\n " ++ show (startEval check) ++ "\n\n" ++ show types
                 "Tensor product of: " ++ show pair2 ++ "\n\t " ++ show tensor2
+
 testOracle :: String
 testOracle = let eTT = Val tt --ExtendedValue true
                  eFF = Val ff --ExtendedValue false
@@ -383,6 +384,8 @@ quantumWalk = let (walk,walkType) = walkTIso
                   --v3 = PairTerm (ValueT x) v2
                   check3 = Omega builtIso $ ValueT v3
                   result3 = startEval check3
+                  inv3 = Omega inv $ ValueT result3
+                  resultInv3 = startEval inv3
                   check4 = Omega hadIdHP $ ValueT result3
                   result4 = startEval check4
                   check5 = Omega builtIso $ ValueT result4
@@ -392,10 +395,38 @@ quantumWalk = let (walk,walkType) = walkTIso
                   in "Quantum Walk transformer T: \n" ++ show walk ++ "\nTypechecks to: " ++ show typeC
                          ++ "\n\nApplied to: " ++ show valTest ++ " :: \n\n" ++ show result
                             ++ "\n\nInverse Iso: \n" ++ show inv' ++ "\n Applied to previous result:\n\t" ++ show resultInv
-                        --  ++ "\n\nApplied to: " ++ show v3 ++ " :: \n\n" ++ show result3
+                             ++ "\n\n Quantum Walk applied to: " ++ show v3 ++ " :: \n\n" ++ show result3
+                              ++ "\nInverted:: " ++ show resultInv3
                           --  ++ "\n\nHad x Ihp :\n" ++ show result4 ++ "\n Applied to T again: \n" ++ show result5
                             --  ++ "\n\n" ++ show walki
 
+rWalk:: String
+rWalk = let (myRwalk,_) = recursiveWalk
+            (walk,walkType) = walkTIso
+            (nextInt,_) = isoNext
+            (prevInt,_) = isoPrevious
+            (nextSign,_) = nextSigned
+            (prevSign,_) = prevSigned
+            prev = (App (App prevSign nextInt) prevInt)
+            p = isoReducing prev -- Should not really be needed if we can build the iso this way.
+            next = (App (App nextSign nextInt) prevInt)
+            n = isoReducing next
+            myWalk = isoReducing  (App (App walk p) n)
+
+            (had,_) = hadIso
+
+            iso = App (App myRwalk had) myWalk
+            inputL = boolLists [True,False]
+            zero = fr $ buildInt 0 4 't'
+            zero' = PairTerm (ValueT tt) zero
+            val = PairTerm inputL zero'
+            check = Omega iso val
+            result = startEval check
+            in "This iso showcases a current problem regarding let notations:\n In the line <h1,p1> = W <h,p>, W<h,p> has quantum control since h went through Had, returning a linear combination.\n Due to that, pattern-matching cannot procced on pair <h1,p1>;"
+                 ++ "\nNot sure if that's a semantical concern of the language, or a symptom of a badly specified iso on my part though."
+                  ++"Recursive application of quantum walk: \n" ++ show myRwalk ++ "\n\n" ++ show walk ++ "\n\n" ++ show prevSign
+                    ++" To input: " ++ show val ++ "\n\n\t"
+                      ++ show result
 
 -- Operation on a list of n bits, applies Had to the n-1 starting elements, and ID to the last. Acts recursively on the list.
 testRecHad ::String
@@ -412,10 +443,39 @@ testRecHad = let
                checkInv = Omega (App inverseRHad inverseId) $ ValueT result
                resultInv = startEval checkInv
                in "Had^N of N+1 bits:: \n" ++ show recHad ++ "Typechecks to: " ++ show typeC
-                    ++ "\n Applied with input: " ++ show input ++ "\n\n" ++ show result
-                      ++ "\n-------------\nInverted iso: \n" ++ show inverseRHad ++ "\n\n Applied to previous result:\n\n" ++ show resultInv
+                        ++ "\n Applied with input: " ++ show input ++ "\n\n" ++ show result
+                          ++ "\n-------------\nInverted iso: \n" ++ show inverseRHad ++ "\n\n Applied to previous result:\n\n" ++ show resultInv
 
 
+
+
+recQuantumWalk ::String
+recQuantumWalk = let (recQ,ty) = recursiveBidimensionalWalk
+                     (nextInt,_) = isoNext
+                     (prevInt,_) = isoPrevious
+                     (nextSign,_) = nextSigned
+                     (prevSign,_) = prevSigned
+                     prev = (App (App prevSign nextInt) prevInt)
+                     p = isoReducing prev -- Should not really be needed if we can build the iso this way.
+                     next = (App (App nextSign nextInt) prevInt)
+                     n = isoReducing next
+                     builtIso =  (App (App recQ p) n)
+
+                     ------ Hadamard on the list of "coins"
+                     (map',isoType) = map1
+                     (had,_) = hadIso
+                     list = boolLists [True,False]
+                     hadCoins = Omega (App map' had) (list)
+                     inputList = startEval hadCoins
+
+                     v = fl $ buildInt 0 4 'v'
+                     v2 = PairV (tt) v
+                     input = ValueT $ Evalue $ tensorProductRep $ PairV inputList v2 -- Need to throw the tensorProductRep here to yank the amplitudes from the list to outside of the pair
+                     -- Now wondering if tensorProductRep should be always called before evaluation. Could probably set up a test for deep amplitudes and only do it then.
+                     check = Omega builtIso input
+                     result = startEval check
+                     in "Recursive bidimensional Quantum Walk:\n" ++ show recQ ++ "\n\n Starting at position zero with coins:\n\t" ++ show inputList
+                           ++ "\n\nEvals to:\n\t" ++ show result
 --0.354~<InjL_(),
       --  0.707~<InjL_(),
           --  0.707~<InjL_(),1~InjL_()>
@@ -487,7 +547,7 @@ testf e1 e2
 -- Loops to allow one to choose a pre-defined example.
 main = do
 
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | recHad || quit\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | 1dRecWalk | recHad | 2dRecWalk|| quit\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -506,6 +566,8 @@ main = do
           "ffff" -> putStr ffff
           "gg" -> putStr gg
           "recHad" -> putStr testRecHad
+          "2dRecWalk" -> putStr recQuantumWalk
+          "1dRecWalk" -> putStr rWalk
           otherwise -> putStr "Undefined Function...\n\n"
         -- putStr "\n\n\n"
       --  putStr myt

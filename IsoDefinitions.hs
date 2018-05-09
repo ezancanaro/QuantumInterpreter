@@ -612,6 +612,56 @@ walkTransform = let (hadTIhp,_) = hadTensorIHp
                     iso = Lambda "T" (Lambda "hadXI_hp" clauses)
                     in (iso,ty)
 
+
+recursiveWalk :: (Iso,T)
+recursiveWalk = let (had,hTy) = hadIso
+                    v1 = InjL EmptyV
+                    h = Xval "h"
+                    y = Xval "y"
+                    t = Xval "t"
+                    p = Xval "p"
+                    v2 = InjR $ PairV h t
+                    pV1 = PairV v1 p
+                    pV2 = PairV v2 p
+                    c1 = Combination (AlphaVal (1:+0) (Val pV1)) $ AlphaVal (0:+0) (Val pV1)
+                    let1 = LetE (Xprod "y") (IsoVar "had") (Xprod "h") let2
+                    let2 = LetE (PairP (Xprod "h1") (Xprod "p1")) (IsoVar "W") (PairP (Xprod "y") (Xprod "p")) let3
+                    let3 = LetE (PairP  (Xprod "t1") (Xprod "p2")) (IsoVar "rec") (PairP (Xprod "t") (Xprod "p1")) c2
+                    newList = InjR $ PairV (Xval "h1") (Xval "t1")
+                    c2 =  Combination  (AlphaVal (0:+0) (Val pV1)) $ AlphaVal (1:+0) (Val $ PairV newList (Xval "p2"))
+                    clauses = Clauses [(pV1,c1),(pV2,let1)]
+                    lambda = Lambda "had" (Lambda "W" (Fixpoint "rec" clauses))
+
+                    fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                    ty = Comp bool bool (Iso (Prod (Rec bool) fiveBits) (Prod (Rec bool) fiveBits)) -- Doesn't include the composition type of walkT, need to do this.
+                    in (lambda, ty)
+
+recursiveBidimensionalWalk :: (Iso,T) -- Defining the 2dim recursive quantum walk from Ying's foundation of quantum...
+recursiveBidimensionalWalk = let pos = Xval "p"
+                                 emptyV = InjL EmptyV
+                                 ee = Val $ PairV emptyV pos
+                                 cons1 = InjR $ PairV (tt) (Xval "t")
+                                 cons2 = InjR $ PairV (ff) (Xval "t")
+                                 v1 = PairV emptyV pos
+                                 v2 = PairV cons1 pos
+                                 v3 = PairV cons2 pos
+
+                                 e1 = Val $ PairV (InjR $ PairV (tt) (Xval "y")) (Xval "p1")
+                                 e2 = Val $ PairV (InjR $ PairV (ff) (Xval "y")) (Xval "p1")
+                                 comb1 = buildOneZeroCombs [ee,ee,ee] 0 0
+                                 comb2 = buildOneZeroCombs [ee,e1,e2] 1 0
+                                 comb3 = buildOneZeroCombs [ee,e1,e2] 2 0
+
+                                 let1 = LetE (Xprod "x") (IsoVar "prev") (Xprod "p") let2
+                                 let2 = LetE (PairP (Xprod "y") (Xprod "p1" )) (IsoVar "rec") (PairP (Xprod "t") (Xprod "x")) comb2
+                                 let3 = LetE (Xprod "x") (IsoVar "next") (Xprod "p") let4
+                                 let4 = LetE (PairP (Xprod "y") (Xprod "p1" )) (IsoVar "rec") (PairP (Xprod "t") (Xprod "x")) comb3
+
+                                 clauses = Clauses [(v1,comb1),(v2,let1),(v3,let3)]
+                                 lamb = Lambda "prev" (Lambda "next" (Fixpoint "rec" clauses))
+                                 in (lamb,Iso bool bool) -- it's not the right type, will define it properly later. Just checking the behavior.
+
+
 id4bits :: (Iso,T)
 id4bits = let v1 = PairV tt (PairV (Xval "x") (PairV (Xval "y") (Xval "z")))
               v2 = PairV ff (PairV (Xval "x") (PairV (Xval "y") (Xval "z")))
