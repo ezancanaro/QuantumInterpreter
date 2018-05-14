@@ -28,6 +28,7 @@ data V =  EmptyV
         | PairV V V
         | Evalue E -- Temporary While I don't evaluate combinations
         deriving(Eq)
+  --      deriving (Eq,Show)
 -- data CombVals = CVal V
 --         | Combination CombVals CombVals
 --         | AlphaVal (Alpha Double) CombVals

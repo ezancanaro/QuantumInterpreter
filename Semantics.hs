@@ -46,10 +46,11 @@ matching sigma (PairV v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
                                                                                     [] -> debug("Actually succedded")
                                                                                             Just $ sigma1 `union` sigma2
                                                                                     otherwise -> debug("Support intersects:" ++ show sigma1 ++ "||" ++ show sigma2)
-                                                                                                    Nothing
+                                                                                                    Nothing -- error $ ("Support Intersects: " ++ show sigma1 ++"\n"++ show sigma2)
                                                   _ -> debug("Falied to match pair to value::" ++ show (PairV w1 w2))
                                                          Nothing
 matching sigma term (Evalue (Val v)) = matching sigma term v -- Need this so let expressions work properly.
+matching sigma term (Evalue (AlphaVal 1 (Val v))) = matching sigma term v -- A value with amplitude 1 is just the value itself
 matching _ term val = debug ("Tried matching: " ++ show term ++ "//With: " ++ show val)
                         Nothing
 
@@ -307,6 +308,7 @@ findFixedPoint f i (InjL EmptyV) fix = let fix' = renameInFixedPoint f (i+1) fix
 --                                                 [pairNameIso] -- error ("PAIRV")
 findFixedPoint f i (PairV (InjL v) _) fix = findFixedPoint f i (InjL v) fix
 findFixedPoint f i (PairV (InjR v) _) fix = findFixedPoint f i (InjR v) fix
+findFixedPoint f i (PairV _ v2) fix = findFixedPoint f i v2 fix -- Allowing lists to be put at the end of a tuple.
 -- --Cases where we apply a tuple of linear combinations on a fix-point iso.
 -- findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ tensorProductRep (PairV (Evalue e) t)) fix
 --Case of a list with elements -- Need to keep unfolding the iso.
@@ -436,14 +438,49 @@ replaceInP (Xprod x) sig = replace (XTerm x) sig --Check that this is actually r
 replaceInP (PairP p1 p2) sig = PairV (replaceInP p1 sig) (replaceInP p2 sig)
 
 
+distributiveLetp :: Sigma -> P -> E -> E -> E
+distributiveLetp sigma p (Combination (AlphaVal a e1) (Combination e2 e3)) bottom =
+      let sig1 = catchMaybe errorString $ matching [] (productVal p) $ Evalue e1
+          let1 = AlphaVal a $ Val $ reduceE (sig1++sigma) bottom
+          let2 = distributiveLetp sigma p (Combination e2 e3) bottom
+      in Combination let1 let2
+          where errorString = "-Failed to reduce LetE: " ++ show p ++ " = " ++ show e1
+distributiveLetp sigma p (Combination (Combination e2 e3) (AlphaVal a e1)) bottom =
+      let sig1 = catchMaybe errorString $ matching [] (productVal p) $ Evalue e1
+          let1 = AlphaVal a $ Val $ reduceE (sig1++sigma) bottom
+          let2 = distributiveLetp sigma p (Combination e2 e3) bottom
+      in Combination let1 let2
+          where errorString = "0-Failed to reduce LetE: " ++ show p ++ " = " ++ show e1
+distributiveLetp sigma p (Combination (AlphaVal a e1) (AlphaVal b e2)) bottom =
+      let sig1 = catchMaybe errorString $ matching [] (productVal p) $ removeEV (Evalue e1)
+          sig2 = catchMaybe errorString2 $ matching [] (productVal p) $ removeEV (Evalue e2)
+          let1 = AlphaVal a $ Val $ reduceE (sig1++sigma) bottom
+          let2 = AlphaVal b $ Val $ reduceE (sig2++sigma) bottom
+          in Combination let1 let2
+              where errorString = "1-Failed to reduce LetE: " ++ show p ++ " = " ++ show  (AlphaVal a e1)
+                    errorString2 = "2-Failed to reduce LetE: " ++ show p ++ " = " ++ show e2
+distributiveLetp sigma p (Combination e1 e2) bottom
+  | Val v1 <- e1 = distributiveLetp sigma p (Combination (AlphaVal (1:+0) (Val v1)) e2) bottom
+  | Val v2 <- e2 = distributiveLetp sigma p (Combination e1 (AlphaVal (1:+0) (Val v2))) bottom
+distributiveLetp s p e b = error $ "undefined operation on " ++ show s ++ show p ++ show e
+
 reduceE :: Sigma -> E -> V
+reduceE sigma (LetE (Xprod s) iso p2 e) = let v = replaceInP p2 sigma
+                                              v' = applicativeContext (Omega iso (ValueT v))
+                                              sig2 = debug("Pair: " ++ show (Xprod s) ++ "  Value:" ++ show v')
+                                                        catchMaybe errorString $ matching [] (productVal (Xprod s)) v'
+                                                          where errorString = "Failed to match on LetE: " ++ show (Xprod s) ++ " = " ++ show v'
+                                              in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
+                                                              reduceE (sig2++sigma) e
 reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
                                         v' = applicativeContext (Omega iso (ValueT v))
-                                        sig2 = debug("Pair: " ++ show p ++ "  Value:" ++ show v')
-                                                catchMaybe errorString $ matching sigma (productVal p) v'
-                                                  where errorString = "Failed to reduce LetE: " ++ show p ++ " = " ++ show v'
-                                  in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
-                                      reduceE sig2 e
+                                        in case v' of
+                                            Evalue (Combination e1 e2) -> Evalue $ distributiveLetp sigma p (Combination e1 e2) e
+                                            otherwise -> let sig2 = debug("Pair: " ++ show p ++ "  Value:" ++ show v')
+                                                                      catchMaybe errorString $ matching [] (productVal p) v'
+                                                                        where errorString = "2-Failed to match LetE: " ++ show p ++ " = " ++ show v'
+                                                         in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
+                                                              reduceE (sig2++sigma) e
 reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with context: " ++ show sigma)
                           replaceV v sigma
 reduceE sigma (Combination e1 e2)
@@ -606,11 +643,12 @@ algebraicProperties (AlphaVal a (Val v))
   | a == (1:+0) = Val v
   | otherwise = AlphaVal a (Val v)
 algebraicProperties (Combination (AlphaVal a e1) (AlphaVal b e2))
-  | a == (0:+0) = AlphaVal b e2
-  | b == (0:+0) = AlphaVal a e1
-  | e1 == e2 = AlphaVal (a+b) e1
+  | a == (0:+0) = algebraicProperties $ AlphaVal b e2
+  | b == (0:+0) = algebraicProperties $ AlphaVal a e1
+  | e1 == e2 = algebraicProperties $ AlphaVal (a+b) e1
   | otherwise = debug("-,-")
-                  (Combination (AlphaVal a e1) (AlphaVal b e2))
+                  (Combination (algebraicProperties $ AlphaVal a e1) (algebraicProperties $ AlphaVal b e2))
+--algebraicProperties (Combination (AlphaVal a e1) e2) = Combination (algebraicProperties (AlphaVal a e1)) (algebraicProperties e2)
 algebraicProperties (Combination e1 e2) = let e' = pairAlphasWithValues True (Combination e1 e2)
                                             in remakeCombination $ addAllCombinations e'
 algebraicProperties (Val v)

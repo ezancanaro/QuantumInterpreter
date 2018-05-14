@@ -613,6 +613,29 @@ walkTransform = let (hadTIhp,_) = hadTensorIHp
                     in (iso,ty)
 
 
+-- recRec :: (Iso,T)
+-- recRec = let (had,hTy) = hadIso
+--                     v1 = InjL EmptyV
+--                     x = Xval "x"
+--                     h = Xval "h"
+--                     y = Xval "y"
+--                     t = Xval "t"
+--                     p = Xval "p"
+--                     v2 = InjR $ PairV h t
+--                     pV1 = PairV x $ PairV p v1
+--                     pV2 = PairV tt $ PairV p v2
+--                     pV3 = PairV ff $ PairV p v2
+--                     c1 = Combination (AlphaVal (1:+0) (Val pV1)) $ Combination (AlphaVal (0:+0) (Val pV1)) $ AlphaVal (0:+0) (Val pV1)
+--                     let1 = LetE (Xprod "y") (IsoVar "had") (Xprod "h") let2
+--                     let2 = LetE (PairP (Xprod "h1") (Xprod "p1")) (IsoVar "W") (PairP (Xprod "y") (Xprod "p")) let3
+--                     let3 = LetE (PairP  (Xprod "t1") (Xprod "p2")) (IsoVar "rec") (PairP (Xprod "t") (Xprod "p1")) c2
+--                     let1' = let1 = LetE (Xprod "y") (App (IsoVar "not") (IsoVar "had")) (Xprod "h") let2
+--                     newList = InjR $ PairV (Xval "h1") (Xval "t1")
+--                     c2 =  Combination  (AlphaVal (0:+0) (Val pV1)) $ Combination (AlphaVal (1:+0) (Val $PairV $ PairV (Xval "p2") newList )) $ (AlphaVal (0:+0) (Val pV1))
+--                     c3 =  Combination  (AlphaVal (0:+0) (Val pV1)) $ Combination (AlphaVal (1:+0) (Val $PairV $ PairV (Xval "p2") newList )) $ (AlphaVal (0:+0) (Val pV1))
+--                     clauses = Clauses [(pV1,c1),(pV2,let1)]
+--                     lambda = Lambda "had" (Lambda "W" (Fixpoint "rec" clauses))
+
 recursiveWalk :: (Iso,T)
 recursiveWalk = let (had,hTy) = hadIso
                     v1 = InjL EmptyV

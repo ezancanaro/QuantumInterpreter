@@ -8,7 +8,6 @@ import Data.Number.CReal
 doDebug = False
           --True -- Don't do it. Honestly. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
 
-
 --Making debug statements easier to use
 debug a b = if doDebug then Debug.Trace.trace a b else b
 --Remember to remove debugging statements after checks

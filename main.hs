@@ -421,10 +421,9 @@ rWalk = let (myRwalk,_) = recursiveWalk
             zero' = PairTerm (ValueT tt) zero
             val = PairTerm inputL zero'
             check = Omega iso val
-            result = startEval check
-            in "This iso showcases a current problem regarding let notations:\n In the line <h1,p1> = W <h,p>, W<h,p> has quantum control since h went through Had, returning a linear combination.\n Due to that, pattern-matching cannot procced on pair <h1,p1>;"
-                 ++ "\nNot sure if that's a semantical concern of the language, or a symptom of a badly specified iso on my part though."
-                  ++"Recursive application of quantum walk: \n" ++ show myRwalk ++ "\n\n" ++ show walk ++ "\n\n" ++ show prevSign
+            result = algebraicProperties $ Val $ startEval check
+            in "Need to double-check if evaluation is correct"
+                  ++"Recursive application of quantum walk: \n" ++ show myRwalk -- ++ "\n\n" ++ show walk ++ "\n\n" ++ show prevSign
                     ++" To input: " ++ show val ++ "\n\n\t"
                       ++ show result
 
@@ -547,7 +546,7 @@ testf e1 e2
 -- Loops to allow one to choose a pre-defined example.
 main = do
 
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | 1dRecWalk | recHad | 2dRecWalk|| quit\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | 1dRecWalk | hadNId | 2dRecWalk|| quit\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -565,7 +564,7 @@ main = do
           "walk" -> putStr quantumWalk
           "ffff" -> putStr ffff
           "gg" -> putStr gg
-          "recHad" -> putStr testRecHad
+          "hadNId" -> putStr testRecHad
           "2dRecWalk" -> putStr recQuantumWalk
           "1dRecWalk" -> putStr rWalk
           otherwise -> putStr "Undefined Function...\n\n"
