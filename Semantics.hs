@@ -152,17 +152,21 @@ tensorProductRep (PairV (Evalue e1) (Evalue e2))
                      c2 = pairAlphasWithValues True e2
                  in debug ("tensor3:: " ++ show (PairV (Evalue e1) (Evalue e2)) ++ "\n")
                       combPairs (pairThem c1 c2)
-tensorProductRep (PairV (Evalue e1) v2) =  let c1 = pairAlphasWithValues True (tensorProductRepresentation e1)
+tensorProductRep (PairV (Evalue e1) v2) =  let c1 = pairAlphasWithValues True (tensorProductRepresentation $ removeVE e1)
                                                c2 = [((1:+0), tensorProductRep v2)]
                                                in  debug ("tensor4:: " ++ show (PairV (Evalue e1) v2) ++ "\n")
                                                     combPairs (pairThem c1 c2)
 tensorProductRep (PairV v2 (Evalue e1)) =  let c1 = [((1:+0), tensorProductRep v2)]
-                                               c2 = pairAlphasWithValues True (tensorProductRepresentation e1)
+                                               c2 = pairAlphasWithValues True (tensorProductRepresentation $ removeVE e1)
                                                in  debug ("tensor5:: " ++ show (PairV v2 (Evalue e1)) ++ "\n")
                                                     combPairs (pairThem c1 c2)
 tensorProductRep (Evalue e)= debug ("tensor6:: " ++ show (Evalue e) ++ "\n")
                                 tensorProductRepresentation e
-tensorProductRep (PairV v1 v2) = Val $ PairV v1 v2
+tensorProductRep (PairV v1 v2) =
+                                if containsAmplitude v1
+                                    then Val $ PairV (removeEV $ Evalue $ tensorProductRep v1) (v2)
+                                else Val $ PairV v1 v2
+  --Val $ PairV v1 v2
 --Treating lists of linear combination:
 tensorProductRep (InjR (PairV v1 v2)) =
                                         if thisTensor == Val (InjR (PairV v1 v2))
@@ -176,10 +180,25 @@ tensorProductRep v = debug("Tensor Nada")
                       Val $ v
 --tensorProductRep v = error $ "TensorRep undefined for: " ++ show v
 
+containsAmplitude :: V -> Bool
+containsAmplitude (Evalue e)
+  | Combination e1 e2 <- e = True
+  | AlphaVal a e1 <- e = True
+  | otherwise = False
+containsAmplitude (InjR v) = containsAmplitude v
+containsAmplitude (InjL v) = containsAmplitude v
+containsAmplitude (PairV v1 v2) = containsAmplitude v1 || containsAmplitude v2
+containsAmplitude x = False
+
 --THe implementation tends to generate a lot of (Evalue (Val v)) terms, this functions gets rid of them
 removeEV :: V -> V
 removeEV (Evalue (Val v)) = v
 removeEV v = v
+
+removeVE :: E -> E
+removeVE (Val (Evalue e)) = e
+removeVE e = e
+
 
 tensorProductRepresentation :: E -> E
 tensorProductRepresentation (Val (Evalue e)) = tensorProductRepresentation e
@@ -212,6 +231,18 @@ combFullyReduced (Combination e1 e2)
           otherwise -> case v2 of
                           Evalue e  -> False
                           otherwise -> True
+  | AlphaVal a (Val (PairV v1 v2)) <- e1
+      = case v1 of
+          Evalue e  -> False
+          otherwise -> case v2 of
+                          Evalue e  -> False
+                          otherwise -> True
+    | AlphaVal a (Val (PairV v1 v2)) <- e2
+        = case v1 of
+            Evalue e  -> False
+            otherwise -> case v2 of
+                            Evalue e  -> False
+                            otherwise -> True
   | otherwise =  True
 combFullyReduced e = True
 
@@ -763,11 +794,15 @@ swapVals (v:vlist) ((a,e):aelist) = (a,Val v) : swapVals vlist aelist
 invertCl :: [(V,E)] -> [(V,E)]
 invertCl [] = []
 invertCL list = let (values,linearEs) = listsFromPairs list
-                    matrix = (fromLists . getLinearTerms) linearEs
-                    inverseLinearAlphas = toLists $ wrap $ inverse matrix
-                    inverseLinears = rebuildEs linearEs inverseLinearAlphas
-                    newClauses = invertLinearClauses values inverseLinears 0
-                    in newClauses
+                    alphas = getLinearTerms linearEs
+                    in if (oZ alphas)
+                        then invertClauses list
+                        else
+                          let matrix = (fromLists . getLinearTerms) linearEs
+                              inverseLinearAlphas = toLists $ wrap $ inverse matrix
+                              inverseLinears = rebuildEs linearEs inverseLinearAlphas
+                              newClauses = invertLinearClauses values inverseLinears 0
+                              in newClauses
                       --error $ "NC: " ++ show newClauses
 
 rebuildEs :: [E] -> [[Alpha]] -> [E]
@@ -791,7 +826,7 @@ invertType (Comp a b t) = Comp b a (invertType t)
 
 invertIso :: Iso -> Iso
 invertIso (IsoVar f) = IsoVar $ f ++ "'"
-invertIso (App omega1 omega2) = App (invertIso omega1) (invertIso omega1)
+invertIso (App omega1 omega2) = App (invertIso omega1) (invertIso omega2)
 invertIso (Lambda f omega) = Lambda (f ++ "'") (invertIso omega)
 invertIso (Fixpoint f omega) = Fixpoint (f ++ "'") (invertIso omega)
 invertIso (Clauses listVE) = Clauses $ invertCL listVE
@@ -806,10 +841,27 @@ invertClauses (ve:listVE) = let e' = invertExtendedValue $ snd ve
 invertExtendedValue :: E -> E
 invertExtendedValue (LetE p1 omega p2 e) = let omega' = invertIso omega in
                                                case invertExtendedValue e of
-                                                (LetE p1' omega'' p2' e') -> LetE p1' omega'' p2' thisLet
+                                                (LetE p1' omega'' p2' e') -> debug("Inverted: " ++ (show $ LetE p1' omega'' p2' thisLet))
+                                                                                swapBottom (LetE p1' omega'' p2' e') thisLet
+                                                                               --LetE p1' omega'' p2' thisLet
                                                       where thisLet = LetE p2 omega' p1 e'
-                                                otherwise -> LetE p2 omega' p1 $ invertExtendedValue e
+                                                otherwise -> debug("Inverted: " ++ (show $ LetE p2 omega' p1 $ invertExtendedValue e))
+                                                              LetE p2 omega' p1 $ invertExtendedValue e
 invertExtendedValue e = e
 
+swapBottom :: E -> E -> E
+swapBottom (LetE p1 omega p2 e) (LetE pp omegap pp2 e2)
+  | LetE p1' omega' p2' e' <- e = LetE p1 omega p2 $ swapBottom e (LetE pp omegap pp2 e2)
+  | otherwise = LetE p1 omega p2 (LetE pp omegap pp2 e)
+
+changeBottomVal :: E -> V -> E
+changeBottomVal (LetE p1 omega p2 e) v
+  | LetE p1' omega' p2' e' <- e = LetE p1 omega p2 $ changeBottomVal e v
+  | otherwise = LetE p1 omega p2 (Val v)
+changeBottomVal (Val v') v = Val v
+changeBottomVal e v = Val v -- Should not find combinations and alphas here.
+
 buildInverted :: (V,E) -> E -> V -> (V,E)
-buildInverted ve (LetE p1 omega p2 e) v' = (v', (LetE p1 omega p2 $ Val $ fst ve))
+buildInverted ve (LetE p1 omega p2 e) v' = (v', changeBottomVal (LetE p1 omega p2 e) (fst ve))
+buildInverted (v,e) e' v' = (v',Val v)
+--buildInverted ve (e) v' = error $ "Cant build inverted:: " ++ show ve ++ " e: "++ show e ++ " v'" ++ show v'

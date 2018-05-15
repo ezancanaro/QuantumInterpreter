@@ -335,22 +335,11 @@ errorOrType (Left e) v = []
 testUnit::[E]->Bool
 testUnit = isUnitary . getLinearTerms
 
--- Bypass the need to build a matrix for isos defined in the classical setting. Could probably do with a smarter version of this.
-oneZeroes :: [Alpha] -> Bool
-oneZeroes [] = True
-oneZeroes (h:t)
-  | h /= 0 && h/= 1 = False
-  | otherwise = oneZeroes t
 
-oZ :: [[Alpha]] -> Bool
-oZ [] = True
-oZ (h:t)
-  | not (oneZeroes h) = False
-  | otherwise = oZ t
 
 isUnitary :: [[Alpha]] -> Bool
 isUnitary lists
-  | oZ lists = True
+  | oZ lists = True -- oZ is defined in Utils.hs -- Used to avoid building a matrix when we have 1e+0e+0e.. combinations in all clauses
   | otherwise   = let mat =  debug(show lists ++ "\n")
                               fromLists lists --Create matrix from lists
                       conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix

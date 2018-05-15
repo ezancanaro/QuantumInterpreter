@@ -108,10 +108,10 @@ instance Show (V) where
   --show (InjR (Evalue (Val (PairV v1 v2)))) = show (InjR (PairV v1 v2)) --It's really sad this pattern needs to exist.
   show (InjR v) = "InjR_" ++ show v
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
-  show (Evalue e) = show e
+  show (Evalue e) = "E" ++ show e
 
 instance Show (E) where
-  show (Val v) = show v
+  show (Val v) = "V" ++ show v
   show (LetE p iso p2 e) = "Let "++show p ++ "="++ show iso ++ " " ++ show p2 ++ "\n\t\tin " ++ show e
   show (Combination v1 v2)
       | show v1 == "" = show v2

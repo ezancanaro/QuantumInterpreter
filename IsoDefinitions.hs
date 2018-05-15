@@ -533,7 +533,7 @@ nextSigned = let zero = fl $ buildInt 0 4 'v'
                  v1 = PairV ff zero
                  v2 = PairV ff (Xval "y")
                  v3 = PairV tt (Xval "y")
-                 a1 = Val $ PairV (tt) (fl $ buildInt 1 4 'v')
+                 a1 = Val $ PairV (tt) zero
                  a2 = Val $ PairV (ff) (Xval "y'")
                  a3 = Val $ PairV (tt) (Xval "y'")
                  alist = [a1,a2,a3]
@@ -559,7 +559,7 @@ prevSigned = let zero = fl $ buildInt 0 4 'v'
                  --v3 = PairV ff zero
                  v3 = PairV ff (Xval "x")
 
-                 a1 = Val $ PairV (ff) (fl $ buildInt 1 4 'v')
+                 a1 = Val $ PairV (ff) zero
                  a2 = Val $ PairV (tt) (Xval "x'")
                  --a4 = Val $ PairV (ff) (fl $ buildInt 1 4 'v')
                  a3 = Val $ PairV (ff) (Xval "x'")
@@ -571,7 +571,7 @@ prevSigned = let zero = fl $ buildInt 0 4 'v'
                  c3 = buildOneZeroCombs alist 2 0
                  e1 = c1
                  e2 = LetE (Xprod "x'") (IsoVar "prev") (Xprod "x") c2
-                 e3 = LetE (Xprod "x'") (IsoVar "prev") (Xprod "x") c3
+                 e3 = LetE (Xprod "x'") (IsoVar "next") (Xprod "x") c3
                  clauses = Clauses [(v1,e1),(v2,e2),(v3,e3)]
                  iso = Lambda "next" (Lambda "prev" clauses)
 

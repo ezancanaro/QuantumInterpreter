@@ -235,8 +235,9 @@ testOracle = let eTT = Val tt --ExtendedValue true
                  -- te = equivalentStates (Val resultNew)
                  -- te' = tensorProductRepresentation te
 
-                 in "Deutsch's algorithm with balanced oracle: \n" ++ show dst ++ "\nTypechecks to: " ++ show typeC
-                      ++ "\n\nApplied to initial state: " ++ show input ++ "\n\n" ++ show resultDst
+                 in "O: " ++ show cst
+                      ++ "Deutsch's algorithm with balanced oracle: \n" ++ show dst ++ "\nTypechecks to: " ++ show typeC
+                        ++ "\n\nApplied to initial state: " ++ show input ++ "\n\n" ++ show resultDst
                       --  ++"\n---------------\n\n Inverted iso: \n" ++ show inverse ++ "Applied to previous result:\n\n" ++ show resultInv
 
                   -- "2qubtis Oracle, with f(x) being NOT x::\n " ++ show oracle ++ "\t" ++ show pair ++ "\n\n Evalued to:\n\t"
@@ -421,11 +422,20 @@ rWalk = let (myRwalk,_) = recursiveWalk
             zero' = PairTerm (ValueT tt) zero
             val = PairTerm inputL zero'
             check = Omega iso val
-            result = algebraicProperties $ Val $ startEval check
-            in "Need to double-check if evaluation is correct"
+            result = startEval check
+
+            inverse = invertIso iso
+            inverse' = invertIso myRwalk -- Just so we don't show the whole iso app chain
+            checkInv = Omega inverse (ValueT result)
+            resultInv = startEval checkInv
+            --tensorInv = algebraicProperties $ tensorProductRep resultInv
+            in "Need to double-check if evaluation is correct.\n This iso shows a problem with current implementation: Normalizing the linear combination resulting from the inverse application through distributive and algebraic properties is REALLY slow.\n"
+                ++"The big bottleneck lies on the tensorProductRep functions, as well as the algebraicProperties. Get some parallel code in there to speed it up??\n\n"
                   ++"Recursive application of quantum walk: \n" ++ show myRwalk -- ++ "\n\n" ++ show walk ++ "\n\n" ++ show prevSign
                     ++" To input: " ++ show val ++ "\n\n\t"
                       ++ show result
+                        ++ "\n\n\nInverse iso:\n" ++ show inverse' ++ "\n Applied to previous result gives:\n\t"
+                          ++ show resultInv ++ "\n\n" -- ++ show tensorInv
 
 -- Operation on a list of n bits, applies Had to the n-1 starting elements, and ID to the last. Acts recursively on the list.
 testRecHad ::String
@@ -535,6 +545,26 @@ gg = let  (map',isoType) = map1
                 ++ "\n--------------\nT2: " ++ show result4 ++ " = \n\n " ++ show t4
 
 
+trt :: (String)
+trt =  let  let1 = LetE (Xprod "y") (IsoVar "had") (Xprod "h") let2
+            let2 = LetE (PairP (Xprod "h1") (Xprod "p1")) (IsoVar "W") (PairP (Xprod "y") (Xprod "p")) let3
+            let3 = LetE (PairP  (Xprod "t1") (Xprod "p2")) (IsoVar "rec") (PairP (Xprod "t") (Xprod "p1")) c2
+            c2 =  Combination  (AlphaVal (0:+0) (Val pV1)) $ AlphaVal (1:+0) (Val $ PairV newList (Xval "p2"))
+            pV1 = PairV v1 p
+            newList = InjR $ PairV (Xval "h1") (Xval "t1")
+            v1 = InjL EmptyV
+            h = Xval "h"
+            y = Xval "y"
+            t = Xval "t"
+            p = Xval "p"
+
+            (nextInt,_) = isoNext
+            (prevInt,_) = isoPrevious
+            (nextSign,_) = nextSigned
+            (prevSign,_) = prevSigned
+          in show prevSign ++ "\n" ++ show nextSign ++ "\n" ++ show prevInt ++ "\n" ++ show nextInt ++ "\n"
+          --"l:\n" ++ show let1 ++ "\n\n" ++ (show $ invertExtendedValue let1)
+
 testf :: E -> E -> E
 testf e1 e2
   | Val v1 <- e1,
@@ -567,6 +597,7 @@ main = do
           "hadNId" -> putStr testRecHad
           "2dRecWalk" -> putStr recQuantumWalk
           "1dRecWalk" -> putStr rWalk
+          "trt" -> putStr trt
           otherwise -> putStr "Undefined Function...\n\n"
         -- putStr "\n\n\n"
       --  putStr myt

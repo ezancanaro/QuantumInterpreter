@@ -103,9 +103,13 @@ catchMaybe s Nothing = error s -- Not really descriptive of the error, I know.
 bottomValue :: E -> V
 bottomValue (Val v) = v
 bottomValue (LetE p1 iso p2 e) = bottomValue e
-bottomValue (Combination e1 e2) = bottomValue e1
+bottomValue (Combination e1 e2)
+  | AlphaVal 0 e <- e1 = bottomValue e2
+  | AlphaVal 0 e <- e2 = bottomValue e1
+  | AlphaVal 1 e <- e1 = bottomValue e1
+  | AlphaVal 1 e <- e2 = bottomValue e2
 bottomValue (AlphaVal alpha e) = bottomValue e
-
+bottomValue e = error $ "BomttomValue undefined for: " ++ show e
 
 -- Function used to make sure all tuples of qubits are represented the same on the examples. Mostly used to make sure examples are visually coherent with each other
 -- Not used directly by the interpreter, since I'm not sure if there's a semantic reason to differentiate (PairV (Pair v1 v2) v3) from (PairV v1 (PairV v2 v3)) in the whole language.
@@ -149,3 +153,16 @@ getLinearAlphas (LetE _ _ _ e) = getLinearAlphas e
 
 getLinearTerms :: [E] ->[[Alpha]]
 getLinearTerms (elist) = map getLinearAlphas elist
+
+-- Bypass the need to build a matrix for isos defined in the classical setting. Could probably do with a smarter version of this.
+oneZeroes :: [Alpha] -> Bool
+oneZeroes [] = True
+oneZeroes (h:t)
+  | h /= 0 && h/= 1 = False
+  | otherwise = oneZeroes t
+
+oZ :: [[Alpha]] -> Bool
+oZ [] = True
+oZ (h:t)
+  | not (oneZeroes h) = False
+  | otherwise = oZ t
