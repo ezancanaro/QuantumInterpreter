@@ -219,6 +219,7 @@ tensorProductRepresentation e = e
 
 combFullyReduced :: E -> Bool
 combFullyReduced (Combination e1 e2)
+  -- Lists::
   | AlphaVal a (Val (InjR (PairV v1 v2))) <- e1
       = case v1 of
           Evalue e  -> False
@@ -243,6 +244,13 @@ combFullyReduced (Combination e1 e2)
             otherwise -> case v2 of
                             Evalue e  -> False
                             otherwise -> True
+  --Other values
+  | AlphaVal a (AlphaVal b e) <- e1 = False
+  | AlphaVal a (AlphaVal b e) <- e2 = False
+  | AlphaVal a (Combination e3 e4) <- e1 = False
+  | AlphaVal a (Combination e3 e4) <- e2 = False
+  | Combination e3 e4 <- e1 = False
+  | Combination e3 e4 <- e2 = combFullyReduced e2
   | otherwise =  True
 combFullyReduced e = True
 
@@ -528,7 +536,7 @@ reduceE sigma (AlphaVal alpha e) = Evalue $ AlphaVal alpha $ Val $ reduceE sigma
 
 
 reduceLinearE :: Alpha -> Sigma -> E -> V
-reduceLinearE 0 sig e = Evalue $ AlphaVal 0 (Val $ bottomValue e)
+reduceLinearE 0 sig e = Evalue $ AlphaVal 0 (Val $ bottomValue e) -- Don't need to evaluate te expression if amplitude is zero.
 reduceLinearE a sig e = reduceE sig e
 
 isoReducing :: Iso -> Iso
@@ -680,7 +688,10 @@ algebraicProperties (Combination (AlphaVal a e1) (AlphaVal b e2))
   | otherwise = debug("-,-")
                   (Combination (algebraicProperties $ AlphaVal a e1) (algebraicProperties $ AlphaVal b e2))
 --algebraicProperties (Combination (AlphaVal a e1) e2) = Combination (algebraicProperties (AlphaVal a e1)) (algebraicProperties e2)
-algebraicProperties (Combination e1 e2) = let e' = pairAlphasWithValues True (Combination e1 e2)
+algebraicProperties (Combination e1 e2)
+  | AlphaVal a (Combination e3 e4) <- e1 = algebraicProperties $ Combination (algebraicProperties e1) e2
+  | AlphaVal a (Combination e3 e4) <- e2 = algebraicProperties $ Combination e1 (algebraicProperties e2)
+  | otherwise = let e' = pairAlphasWithValues True (Combination e1 e2)
                                             in remakeCombination $ addAllCombinations e'
 algebraicProperties (Val v)
   | Evalue e <- v = algebraicProperties e
@@ -689,6 +700,10 @@ algebraicProperties e = error $ "Undefined AlgebraicProperties for: " ++ show e
                         --error $ "no can do: " ++ show e
 
 --Combination (a tt) (Combination a ff (combination a tt (Combination b ff)))
+
+-- algebraCombs :: [(Alpha,E)] -> [(Alpha,E)]
+-- algebraCombs [] = []
+-- algebraCombs ((a1,e1):list) = let a' = algebraicProperties (AlphaVal a1 e1)
 
 
 addAllCombinations :: [(Alpha,E)] -> [(Alpha,E)]
@@ -708,6 +723,8 @@ adds a1 (a2:list) = case addIfEqual a1 (a2) of
 addIfEqual :: (Alpha, E) -> (Alpha, E) -> Maybe (Alpha, E)
 addIfEqual (a1,e1) (a2,e2) = if e1 == e2 then Just (a1+a2,e1)
                              else Nothing
+
+
 
 --Takes a combination and creates a list pairing the amplitudes with their related values.
 -- The bool argument is a flag indicating if zero amplitudes should be ignored.

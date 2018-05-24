@@ -50,6 +50,7 @@ Some notes on current representation:
 3. Improve the error messages given when typechecking. Current ones are more suited for aiding the development of the actual typechecker than for providing helpfull information to the user.
 4. Implement variable scoping/a way of dealing with variable capturing in higher-order isos. - Done for isos, should not be a problem on value variables but need to test it a bit more.
 5. Read up on conditional importing modules, so that it can use the same main.hs for both monadic and pure typecheckers.
+6. Optimize the algebraicProperties and TensorProductRep functions, the worst performance part of the implementation by far.
 
 A couple of exensions could be cool:
 

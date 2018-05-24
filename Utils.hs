@@ -101,13 +101,16 @@ catchMaybe s Nothing = error s -- Not really descriptive of the error, I know.
 
 --Returns the bottom value from an Extended Value. (Val(e))
 bottomValue :: E -> V
-bottomValue (Val v) = v
+bottomValue (Val v)
+  | Evalue e <- v = bottomValue e
+  | otherwise = v
 bottomValue (LetE p1 iso p2 e) = bottomValue e
 bottomValue (Combination e1 e2)
   | AlphaVal 0 e <- e1 = bottomValue e2
   | AlphaVal 0 e <- e2 = bottomValue e1
   | AlphaVal 1 e <- e1 = bottomValue e1
   | AlphaVal 1 e <- e2 = bottomValue e2
+  | otherwise = bottomValue e1 -- Not really sure which should be the bottomValue here. 
 bottomValue (AlphaVal alpha e) = bottomValue e
 bottomValue e = error $ "BomttomValue undefined for: " ++ show e
 

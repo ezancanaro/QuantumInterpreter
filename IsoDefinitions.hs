@@ -636,6 +636,30 @@ walkTransform = let (hadTIhp,_) = hadTensorIHp
 --                     clauses = Clauses [(pV1,c1),(pV2,let1)]
 --                     lambda = Lambda "had" (Lambda "W" (Fixpoint "rec" clauses))
 
+
+isoWalk :: (Iso,T)
+isoWalk = let (had,hTy) = hadIso
+              v1 = InjL EmptyV
+              h = Xval "h"
+              y = Xval "y"
+              t = Xval "t"
+              p = Xval "p"
+              d = Xval "d"
+              v2 = InjR $ PairV h t
+              pV1 = PairV v1 p
+              pV2 = PairV d p
+              --c1 = Combination (AlphaVal (1:+0) (Val pV1)) $ AlphaVal (0:+0) (Val pV1)
+              let1 = LetE (Xprod "y") (IsoVar "had") (Xprod "d") let2
+              let2 = LetE (PairP (Xprod "h1") (Xprod "p1")) (IsoVar "W") (PairP (Xprod "y") (Xprod "p")) c2
+              --let3 = LetE (PairP  (Xprod "t1") (Xprod "p2")) (IsoVar "rec") (PairP (Xprod "t") (Xprod "p1")) c2
+              output = PairV (Xval "h1") (Xval "p1")
+              c2 =  AlphaVal (1:+0) (Val output)
+              clauses = Clauses [(pV2,let1)]
+              lambda = Lambda "had" (Lambda "W" clauses)
+              fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+              ty = Comp bool bool (Iso (Prod bool fiveBits) (Prod bool fiveBits)) -- Doesn't include the composition type of walkT, need to do this.
+              in (lambda, ty)
+
 recursiveWalk :: (Iso,T)
 recursiveWalk = let (had,hTy) = hadIso
                     v1 = InjL EmptyV
@@ -658,6 +682,56 @@ recursiveWalk = let (had,hTy) = hadIso
                     fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
                     ty = Comp bool bool (Iso (Prod (Rec bool) fiveBits) (Prod (Rec bool) fiveBits)) -- Doesn't include the composition type of walkT, need to do this.
                     in (lambda, ty)
+
+
+yingWalker :: (Iso,T)
+yingWalker = let list = Xval "list"
+                 d = Xval "d"
+                 p = Xval "p"
+                 v1 = PairV (list) (PairV d p)
+
+                 let1 = LetE (PairP (Xprod "d1") (Xprod "p1"))
+                          (IsoVar "isoWalk") (PairP (Xprod "d") (Xprod "p"))
+                            let2
+                 let2 = LetE (PairP (Xprod "d2") (Xprod "p2"))
+                         (IsoVar "isoWalk") (PairP (Xprod "d1") (Xprod "p1"))
+                           let3
+                 let3 = LetE (PairP (Xprod "d3") (Xprod "p3")) -- =
+                         (IsoVar "isoWalk") (PairP (Xprod "d2") (Xprod "p2")) -- in
+                           let4
+                 let4 = LetE (PairP (Xprod "listRec") (Xprod "pRec"))
+                          (IsoVar "recursiveWalk") (PairP (Xprod "list") (Xprod "p3"))
+                            out
+                 out = Val $ PairV (Xval "listRec") (PairV (Xval "d3") (Xval "pRec"))
+                 clauses = Clauses [(v1,let1)]
+                 lambda = Lambda "isoWalk" (Lambda "recursiveWalk" clauses)
+                 ty = Iso bool bool
+                 in (lambda,ty)
+
+yingWalkerNoRec :: (Iso,T)
+yingWalkerNoRec =
+             let list = Xval "list"
+                 d = Xval "d"
+                 p = Xval "p"
+                 v1 =(PairV d p)
+
+                 let1 = LetE (PairP (Xprod "d1") (Xprod "p1"))
+                          (IsoVar "isoWalk") (PairP (Xprod "d") (Xprod "p"))
+                            let2
+                 let2 = LetE (PairP (Xprod "d2") (Xprod "p2"))
+                         (IsoVar "isoWalk") (PairP (Xprod "d1") (Xprod "p1"))
+                           let3
+                 let3 = LetE (PairP (Xprod "d3") (Xprod "p3")) -- =
+                         (IsoVar "isoWalk") (PairP (Xprod "d2") (Xprod "p2")) -- in
+                           out
+                 -- let4 = LetE (PairP (Xprod "listRec") (Xprod "pRec"))
+                 --          (IsoVar "recursiveWalk") (PairP (Xprod "list") (Xprod "p3"))
+                 --            out
+                 out = Val $ (PairV (Xval "d3") (Xval "p3"))
+                 clauses = Clauses [(v1,let1)]
+                 lambda = Lambda "isoWalk" clauses
+                 ty = Iso bool bool
+                 in (lambda,ty)
 
 recursiveBidimensionalWalk :: (Iso,T) -- Defining the 2dim recursive quantum walk from Ying's foundation of quantum...
 recursiveBidimensionalWalk = let pos = Xval "p"

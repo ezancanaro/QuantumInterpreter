@@ -417,7 +417,7 @@ rWalk = let (myRwalk,_) = recursiveWalk
             (had,_) = hadIso
 
             iso = App (App myRwalk had) myWalk
-            inputL = boolLists [True,False]
+            inputL = boolLists [True,True]
             zero = fr $ buildInt 0 4 't'
             zero' = PairTerm (ValueT tt) zero
             val = PairTerm inputL zero'
@@ -428,6 +428,7 @@ rWalk = let (myRwalk,_) = recursiveWalk
             inverse' = invertIso myRwalk -- Just so we don't show the whole iso app chain
             checkInv = Omega inverse (ValueT result)
             resultInv = startEval checkInv
+            beforeResult = applicativeContext checkInv
             --tensorInv = algebraicProperties $ tensorProductRep resultInv
             in "Need to double-check if evaluation is correct.\n This iso shows a problem with current implementation: Normalizing the linear combination resulting from the inverse application through distributive and algebraic properties is REALLY slow.\n"
                 ++"The big bottleneck lies on the tensorProductRep functions, as well as the algebraicProperties. Get some parallel code in there to speed it up??\n\n"
@@ -435,7 +436,8 @@ rWalk = let (myRwalk,_) = recursiveWalk
                     ++" To input: " ++ show val ++ "\n\n\t"
                       ++ show result
                         ++ "\n\n\nInverse iso:\n" ++ show inverse' ++ "\n Applied to previous result gives:\n\t"
-                          ++ show resultInv ++ "\n\n" -- ++ show tensorInv
+                          ++ show beforeResult++"\n\n"
+                            ++ show resultInv ++ "\n\n" -- ++ show tensorInv
 
 -- Operation on a list of n bits, applies Had to the n-1 starting elements, and ID to the last. Acts recursively on the list.
 testRecHad ::String
@@ -485,6 +487,57 @@ recQuantumWalk = let (recQ,ty) = recursiveBidimensionalWalk
                      result = startEval check
                      in "Recursive bidimensional Quantum Walk:\n" ++ show recQ ++ "\n\n Starting at position zero with coins:\n\t" ++ show inputList
                            ++ "\n\nEvals to:\n\t" ++ show result
+
+
+yingRecursiveWalk :: String
+yingRecursiveWalk = let (walk,walkType) = walkTIso
+                        (nonRecWalk,_) = isoWalk
+                        (recWalk,_) = recursiveWalk
+                        (nextInt,_) = isoNext
+                        (prevInt,_) = isoPrevious
+                        (nextSign,_) = nextSigned
+                        (prevSign,_) = prevSigned
+                        (had,_) = hadIso
+                        (yings,_)= yingWalker
+                        prev = (App (App prevSign nextInt) prevInt)
+                        p = isoReducing prev -- Should not really be needed if we can build the iso this way.
+                        next = (App (App nextSign nextInt) prevInt)
+                        n = isoReducing next
+                        myWalk = isoReducing  (App (App walk p) n)
+                        myNonRecWalk = isoReducing $ App (App nonRecWalk had) myWalk
+                        myRecWalk = isoReducing $ App (App recWalk had) myWalk
+
+                        myYing = App (App yings myNonRecWalk) myRecWalk
+                        mm = isoReducing myYing
+                        inputList = applicativeContext $ boolLists [True]
+                        v = fl $ buildInt 0 4 'v'
+                        zero = PairV (tt) v
+                        d0p0 = PairV tt zero
+                        input = ValueT $ PairV inputList d0p0
+                        check = Omega myYing input
+                        partialResult = applicativeContext check
+                        result = startEval check
+                        result' = algebraicProperties (Val result)
+                        -------- Different approach∷
+                        (nRecYing,_) = yingWalkerNoRec
+                        mynRecYing = App nRecYing myNonRecWalk
+                        check2 = Omega mynRecYing (ValueT d0p0)
+                        resultN = startEval check2
+                        resultN' = algebraicProperties $ algebraicProperties $ Val resultN
+                        --builtIso =  (App (App recQ p) n)
+                        in "Trying to specify Yings's recursive Walk. It does exhibit the cancelling of the right 2 terms shown in the book, but the amplitudes here are messed up \n"
+                            ++ "Also, there's a caveat that the terms only cancel each other AFTER the recursive call, so the behaviour is not exactly the one described there."
+                              ++ "(TL[p] {+ H[d]} TR[P]) = \n" ++ show nonRecWalk
+                                ++ "\n\n(TL[p];X {+ H[d]} TR[P];X) = \n" ++ show recWalk
+                                  ++ "\n\nThen X, with n being 3 is \n" ++ show yings
+                                   -- ++ "\n\n " ++ show mm
+                                    ++ "\n\n Applied to input: \n\t" ++ show input
+                                      ++ "\n\nPartially reduces to: \n " ++ show partialResult
+                                        ++ "\n\n Fully reduces to: \n" ++ show result
+                                          ++ "\n\n " ++ show result'
+                                            ++ "\n\n Non recursive::\n " ++ show resultN
+
+
 --0.354~<InjL_(),
       --  0.707~<InjL_(),
           --  0.707~<InjL_(),1~InjL_()>
@@ -576,7 +629,8 @@ testf e1 e2
 -- Loops to allow one to choose a pre-defined example.
 main = do
 
-        putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | 1dRecWalk | hadNId | 2dRecWalk|| quit\n ")
+        putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | 1dRecWalk | hadNId |"
+                  ++ "yingWalk || quit\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -597,6 +651,7 @@ main = do
           "hadNId" -> putStr testRecHad
           "2dRecWalk" -> putStr recQuantumWalk
           "1dRecWalk" -> putStr rWalk
+          "yingWalk" -> putStr yingRecursiveWalk
           "trt" -> putStr trt
           otherwise -> putStr "Undefined Function...\n\n"
         -- putStr "\n\n\n"

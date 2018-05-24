@@ -28,7 +28,7 @@ data V =  EmptyV
         | PairV V V
         | Evalue E -- Temporary While I don't evaluate combinations
         deriving(Eq)
-  --      deriving (Eq,Show)
+      --  deriving (Eq,Show)
 -- data CombVals = CVal V
 --         | Combination CombVals CombVals
 --         | AlphaVal (Alpha Double) CombVals
@@ -42,7 +42,7 @@ data E =  Val V
         | Combination E E
         | AlphaVal (Alpha) E
         deriving(Eq)
-        --deriving(Eq,Show)
+    --    deriving(Eq,Show)
 data Iso = Lambda String Iso
         | IsoVar String
         | App Iso Iso
@@ -101,12 +101,16 @@ instance Show (T) where
 instance Show (V) where
   show (EmptyV) = "()"
   show (Xval s) = s
-  show (InjL v) = "InjL_" ++ show v
+  show (InjL v)
+    | EmptyV <- v = "tt" -- Since we are mostly testing boolean values for now, make the output a bit clearer.
+    | otherwise = "InjL_" ++ show v
   show (InjR (PairV v1 v2))
     | InjL EmptyV <- v2 = "R_[" ++ show v1 ++ " : " ++ "[]" ++ "]"
     | otherwise = "R_[" ++ show v1 ++ " : " ++ show v2 ++ "]"
   --show (InjR (Evalue (Val (PairV v1 v2)))) = show (InjR (PairV v1 v2)) --It's really sad this pattern needs to exist.
-  show (InjR v) = "InjR_" ++ show v
+  show (InjR v)
+    | EmptyV <- v = "ff"
+    |otherwise = "InjR_" ++ show v
   show (PairV v1 v2) = "<" ++ show v1 ++ "," ++ show v2 ++ ">"
   show (Evalue e) = "E" ++ show e
 
@@ -116,7 +120,7 @@ instance Show (E) where
   show (Combination v1 v2)
       | show v1 == "" = show v2
       | show v2 == "" = show v1
-      | otherwise = show v1 ++ "+" ++ show v2
+      | otherwise = "(" ++ show v1 ++ "+" ++ show v2++")"
   show (AlphaVal alpha e)
       | alpha == 0 = "0"
       | alpha == 1 = "1" ++ show e
