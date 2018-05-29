@@ -5,8 +5,8 @@ import Data.Complex
 import Data.Number.CReal
 
 --Debugging flag-
-doDebug = False
-          --True -- Don't do it. Honestly. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
+doDebug = --False
+          True -- Don't do it. Honestly. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
 
 --Making debug statements easier to use
 debug a b = if doDebug then Debug.Trace.trace a b else b
@@ -110,7 +110,7 @@ bottomValue (Combination e1 e2)
   | AlphaVal 0 e <- e2 = bottomValue e1
   | AlphaVal 1 e <- e1 = bottomValue e1
   | AlphaVal 1 e <- e2 = bottomValue e2
-  | otherwise = bottomValue e1 -- Not really sure which should be the bottomValue here. 
+  | otherwise = bottomValue e1 -- Not really sure which should be the bottomValue here.
 bottomValue (AlphaVal alpha e) = bottomValue e
 bottomValue e = error $ "BomttomValue undefined for: " ++ show e
 

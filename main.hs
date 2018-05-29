@@ -24,7 +24,7 @@ test1 = let (ifIso,ifType) = if1
             if'Type = invertType ifType
             check2 = Omega (App if' (App had had)) evaluation
             result2 = startEval check2
-            --r3 = algebraicProperties $ tensorProductRep result2
+            --r3 = algebraicProperties $ distributiveProp result2
             in ("If Type:" ++ show (typeCheck delta psi ifIso ifType) )
               ++ "\nTestig if, with g,h being Had\n" ++ show ifIso ++ "\n" ++  show term ++".\nEvals to:\n\t" ++ show evaluation
                 ++ "\n\nInverted if: " ++ show (invertIso ifIso) ++ "Typed: " ++ show if'Type
@@ -49,7 +49,7 @@ testMap =
       check' = Omega (App inverseMap had) result
       result' = startEval check'
       ccc = applicativeContext check'
-  --    curious = tensorProductRep result'
+  --    curious = distributiveProp result'
       in ( "\n Map Had With Type: " ++ show (typeCheck delta psi map' isoType))
         ++  "\n\nEvaluating: " ++ show check3 ++ "\n\n\tEvals to:\n\t\t " ++ show result
           ++ "\n\n Inverse Map: " ++ show inverseMap
@@ -172,8 +172,8 @@ tester = let eTT = Val tt --ExtendedValue true
              e3 = Combination (AlphaVal a eTT) (AlphaVal b eFF)
              pair = PairV (Evalue e1) (Evalue e2)
              pair2 = PairV (Evalue e3) pair
-             tensor = tensorProductRep pair
-             tensor2 = tensorProductRep pair2
+             tensor = distributiveProp pair
+             tensor2 = distributiveProp pair2
              (cnot,_) = simpleCnot
              (mynot,_) = not1
              (myIf,ifType) = if1
@@ -198,7 +198,7 @@ testOracle = let eTT = Val tt --ExtendedValue true
                  result = startEval check
                  check2 = Omega (App oracle mynot) (ValueT result)
                  result2 = startEval check2
-                -- test = tensorProductRepresentation $ Val result
+                -- test = distributivePropresentation $ Val result
                  deutschJozsa = PairV (Evalue e1) (Evalue e2)
                  checkDeutschJozsa = Omega (App oracle mynot) (ValueT deutschJozsa)
                  result3 = startEval checkDeutschJozsa
@@ -208,7 +208,7 @@ testOracle = let eTT = Val tt --ExtendedValue true
                  check5 = Omega hadTensID (ValueT pairTest)
                  result4 = startEval check4
                  result5 = startEval check5
-                 tensor4 = tensorProductRep result4
+                 tensor4 = distributiveProp result4
                  (myId,_) = idIso
                  (cst,_) = constant
 
@@ -233,7 +233,7 @@ testOracle = let eTT = Val tt --ExtendedValue true
                  resultInv = startEval checkInv
 
                  -- te = equivalentStates (Val resultNew)
-                 -- te' = tensorProductRepresentation te
+                 -- te' = distributivePropresentation te
 
                  in "O: " ++ show cst
                       ++ "Deutsch's algorithm with balanced oracle: \n" ++ show dst ++ "\nTypechecks to: " ++ show typeC
@@ -322,7 +322,7 @@ myt = let v1 = AlphaVal alpha $ Val $ PairV tt (Evalue $ AlphaVal (1:+0) ttE)
           g = AlphaVal ((-0.354):+0) $ Val $ PairV ff (Evalue c)
 
           c2 = Combination f g
-          tensorC = tensorProductRep (Evalue c2)
+          tensorC = distributiveProp (Evalue c2)
           in "V: " ++ show c2 ++ " \n\n Tensor:\n" ++ show tensorC
 
 -- Simple function to get the n+1 on 4 bits integers. Used 4 bits to save on evaluation time of longer strings of bits.
@@ -429,14 +429,14 @@ rWalk = let (myRwalk,_) = recursiveWalk
             checkInv = Omega inverse (ValueT result)
             resultInv = startEval checkInv
             beforeResult = applicativeContext checkInv
-            --tensorInv = algebraicProperties $ tensorProductRep resultInv
+            --tensorInv = algebraicProperties $ distributiveProp resultInv
             in "Need to double-check if evaluation is correct.\n This iso shows a problem with current implementation: Normalizing the linear combination resulting from the inverse application through distributive and algebraic properties is REALLY slow.\n"
-                ++"The big bottleneck lies on the tensorProductRep functions, as well as the algebraicProperties. Get some parallel code in there to speed it up??\n\n"
+                ++"The big bottleneck lies on the distributiveProp functions, as well as the algebraicProperties. Get some parallel code in there to speed it up??\n\n"
                   ++"Recursive application of quantum walk: \n" ++ show myRwalk -- ++ "\n\n" ++ show walk ++ "\n\n" ++ show prevSign
                     ++" To input: " ++ show val ++ "\n\n\t"
                       ++ show result
-                        ++ "\n\n\nInverse iso:\n" ++ show inverse' ++ "\n Applied to previous result gives:\n\t"
-                          ++ show beforeResult++"\n\n"
+                        ++ "\n\n\nInverse iso:\n" ++ show inverse' ++ "\n Applied to previous result gives (before algebraic properties):\n\t"
+                          ++ show beforeResult++"\n\n After algebra: \n\n"
                             ++ show resultInv ++ "\n\n" -- ++ show tensorInv
 
 -- Operation on a list of n bits, applies Had to the n-1 starting elements, and ID to the last. Acts recursively on the list.
@@ -481,8 +481,8 @@ recQuantumWalk = let (recQ,ty) = recursiveBidimensionalWalk
 
                      v = fl $ buildInt 0 4 'v'
                      v2 = PairV (tt) v
-                     input = ValueT $ Evalue $ tensorProductRep $ PairV inputList v2 -- Need to throw the tensorProductRep here to yank the amplitudes from the list to outside of the pair
-                     -- Now wondering if tensorProductRep should be always called before evaluation. Could probably set up a test for deep amplitudes and only do it then.
+                     input = ValueT $ Evalue $ distributiveProp $ PairV inputList v2 -- Need to throw the distributiveProp here to yank the amplitudes from the list to outside of the pair
+                     -- Now wondering if distributiveProp should be always called before evaluation. Could probably set up a test for deep amplitudes and only do it then.
                      check = Omega builtIso input
                      result = startEval check
                      in "Recursive bidimensional Quantum Walk:\n" ++ show recQ ++ "\n\n Starting at position zero with coins:\n\t" ++ show inputList
@@ -517,7 +517,6 @@ yingRecursiveWalk = let (walk,walkType) = walkTIso
                         check = Omega myYing input
                         partialResult = applicativeContext check
                         result = startEval check
-                        result' = algebraicProperties (Val result)
                         -------- Different approach∷
                         (nRecYing,_) = yingWalkerNoRec
                         mynRecYing = App nRecYing myNonRecWalk
@@ -525,16 +524,15 @@ yingRecursiveWalk = let (walk,walkType) = walkTIso
                         resultN = startEval check2
                         resultN' = algebraicProperties $ algebraicProperties $ Val resultN
                         --builtIso =  (App (App recQ p) n)
-                        in "Trying to specify Yings's recursive Walk. It does exhibit the cancelling of the right 2 terms shown in the book, but the amplitudes here are messed up \n"
+                        in "Trying to specify Yings's recursive Walk. It does exhibit the cancelling of the2 terms shown in the book, but the amplitudes here are not being reduced fully.\n"
                             ++ "Also, there's a caveat that the terms only cancel each other AFTER the recursive call, so the behaviour is not exactly the one described there."
                               ++ "(TL[p] {+ H[d]} TR[P]) = \n" ++ show nonRecWalk
                                 ++ "\n\n(TL[p];X {+ H[d]} TR[P];X) = \n" ++ show recWalk
                                   ++ "\n\nThen X, with n being 3 is \n" ++ show yings
                                    -- ++ "\n\n " ++ show mm
                                     ++ "\n\n Applied to input: \n\t" ++ show input
-                                      ++ "\n\nPartially reduces to: \n " ++ show partialResult
+                                      ++ "\n\nPartially reduces to (no algebraic properties applied): \n " ++ show partialResult
                                         ++ "\n\n Fully reduces to: \n" ++ show result
-                                          ++ "\n\n " ++ show result'
                                             ++ "\n\n Non recursive::\n " ++ show resultN
 
 
@@ -587,13 +585,13 @@ gg = let  (map',isoType) = map1
           check3 = Omega (App map' had) list3
           result = startEval check3
 
-          t = tensorProductRep result
+          t = distributiveProp result
 
           list4 = boolLists [True,True,False]
           check4 = Omega (App map' had) list4
           result4 = startEval check4
 
-          t4 = tensorProductRep result4
+          t4 = distributiveProp result4
           in "T1: " ++ show result ++ " = \n\n " ++ show t
                 ++ "\n--------------\nT2: " ++ show result4 ++ " = \n\n " ++ show t4
 

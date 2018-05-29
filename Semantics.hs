@@ -23,14 +23,14 @@ intersectionTest f sig1 sig2 = (f sig1) `intersect` (f sig2)
 
 --Starting point for evaluating terms. Since every program could potentially generate a combination we always apply these properties.
 startEval :: Term -> V
-startEval t = fullyReduce $ (algebraicProperties . tensorProductRep) $ applicativeContext t
+startEval t = fullyReduce $ (algebraicProperties . distributiveProp) $ applicativeContext t
 
 -- Make sure combinations are fully reduced before returning them.
--- Should be able to eliminate this function call by properly dealing with these results in the TensorProductRep function, but I can't for the life of me figure it out there, so I need to add this stupid little function to make sure it works properly and ramble on a stupid comment to alleviate the feeling of being kinda dumb, but not that dumb.
+-- Should be able to eliminate this function call by properly dealing with these results in the distributiveProp function, but I can't for the life of me figure it out there, so I need to add this stupid little function to make sure it works properly and ramble on a stupid comment to alleviate the feeling of being kinda dumb, but not that dumb.
 fullyReduce :: E -> V
 fullyReduce e = if combFullyReduced $ e
                   then removeEV $ Evalue e
-                  else fullyReduce $ (algebraicProperties . tensorProductRepresentation) e
+                  else fullyReduce $ (algebraicProperties . distributivePropExtended) e
 
 -- maybe sig1 . maybe sig2
 
@@ -43,15 +43,15 @@ matching sigma (PairV v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
                                                   sig2 = matching sigma v2 w2
                                              in case (sig1,sig2) of
                                                   (Just sigma1,Just sigma2) -> case intersectionTest support sigma1 sigma2 of
-                                                                                    [] -> debug("Actually succedded")
+                                                                                    [] -> --debug("Actually succedded")
                                                                                             Just $ sigma1 `union` sigma2
-                                                                                    otherwise -> debug("Support intersects:" ++ show sigma1 ++ "||" ++ show sigma2)
+                                                                                    otherwise -> --debug("Support intersects:" ++ show sigma1 ++ "||" ++ show sigma2)
                                                                                                     Nothing -- error $ ("Support Intersects: " ++ show sigma1 ++"\n"++ show sigma2)
-                                                  _ -> debug("Falied to match pair to value::" ++ show (PairV w1 w2))
+                                                  _ -> --debug("Falied to match pair to value::" ++ show (PairV w1 w2))
                                                          Nothing
 matching sigma term (Evalue (Val v)) = matching sigma term v -- Need this so let expressions work properly.
 matching sigma term (Evalue (AlphaVal 1 (Val v))) = matching sigma term v -- A value with amplitude 1 is just the value itself
-matching _ term val = debug ("Tried matching: " ++ show term ++ "//With: " ++ show val)
+matching _ term val = --debug ("Tried matching: " ++ show term ++ "//With: " ++ show val)
                         Nothing
 
 
@@ -72,21 +72,21 @@ reductionRules :: Term -> V
 reductionRules (Let p (ValueT v1) t2) = replace t2 $ catchMaybe errorString $ matching  [] (productVal p) v1
                                           where errorString = "Failed pattern-matching on let " ++ show p ++ " = " ++ show v1
 reductionRules (Omega (Clauses isoDefs) (ValueT (PairV v1 v2))) = if isVlinear (PairV v1 v2) --then error "Undefined"
-                                                                    then reductionRules (Omega (Clauses isoDefs) (ValueT $ Evalue $ tensorProductRep (PairV v1 v2)))
+                                                                    then reductionRules (Omega (Clauses isoDefs) (ValueT $ Evalue $ distributiveProp (PairV v1 v2)))
                                                                     else applyValueToClauses (Clauses isoDefs) (ValueT (PairV v1 v2))
-reductionRules (Omega (Clauses isoDefs) (ValueT (Evalue e))) = debug("Matching eval..")
+reductionRules (Omega (Clauses isoDefs) (ValueT (Evalue e))) = --debug("Matching eval..")
                                                                   wrap $ matchLinearCombinations isoDefs e 1
 reductionRules (Omega (Clauses isoDefs) (ValueT v)) = applyValueToClauses (Clauses isoDefs) (ValueT v)
                                       --Iso application: In case iso1 is a lambda, substitute the free-vars for iso2 and then apply term to it
 reductionRules (Omega (App i1 i2) t) = reductionRules (Omega (isoReducing (App i1 i2)) t)
-reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let unfoldedRecursion = debug ("My Val: " ++ show v)
+reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let unfoldedRecursion = --debug ("My Val: " ++ show v)
                                                                                               buildLamFromFix f v (Clauses isoDefs)
                                                                        in reductionRules (Omega unfoldedRecursion (ValueT v))
 
 --                                                                        i = snd match
---                                                                        term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
+--                                                                        term = --debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
 --                                                                                  snd $ isoDefs !! i
---                                                                        in debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
+--                                                                        in --debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
 --                                                                           if checkIfFixedPoint term f then reduceE (fst match) term
 --                                                                           else reductionRules (Omega (isoReducing (Fixpoint f (Clauses isoDefs))) (ValueV t))
 --                                                                                     --not correct
@@ -97,21 +97,21 @@ applyValueToClauses :: Iso -> Term -> V
 applyValueToClauses (Clauses isoDefs) (ValueT v) = let match = matchClauses isoDefs v 0 -- NOT COMPLETED YET
                                                        i = snd match
                                                    in if i < length isoDefs
-                                                      then let term = debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
+                                                      then let term = --debug ("i: " ++ show i ++ "lista: " ++ show (length isoDefs))
                                                                             snd $ isoDefs !! i
-                                                               in debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
+                                                               in --debug("Chosen:  "++ show (fst match) ++ " to: " ++ show term)
                                                                         reduceE (fst match) term
                                                       else error $ "Failed to match value: " ++ show v ++ " in clauses:\n" ++ (show $ map fst isoDefs)
 
 -- applyLinearCombinationsInPairs :: Iso -> V -> V
--- applyLinearCombinationsInPairs (Clauses isoDefs) (PairV v1 v2) = let tensor = Evalue $ tensorProductRep $ PairV v1 v2
+-- applyLinearCombinationsInPairs (Clauses isoDefs) (PairV v1 v2) = let tensor = Evalue $ distributiveProp $ PairV v1 v2
 --                                                                  in reductionRules (Clauses isoDefs) tensor
 
 -- <a1 + a2, b1 + b2> -> a1.b1<a1,b1>+a1.b2<a1,b2>+a2.b1<a2,b1>+a2.b2<a2,b2>
 -- <a1+a2, <b1+b2,c1+c2> -><a1+a2, b1.c1<b1,c1> + b1.c2<b1,c2> + b2.c1<b2,c1> + b2.c2<b2,c2>
 --   -> a1.b1.c1<a1,<b1,c1> + a1.b1.c2<a1,<b1,c2> + a1.b2.c1<a1,<b2,c1> + a1.b2.c2<a1,<b2,c2> + a2....
 
---The next two functions are needed due to unorganized implementation of tensorProductRep, in order to avoid infinite loops on evaluation.
+--The next two functions are needed due to unorganized implementation of distributiveProp, in order to avoid infinite loops on evaluation.
 replaceVP :: V -> V -> V
 replaceVP new (EmptyV) = EmptyV
 replaceVP new (Xval "stupidVariable") = new
@@ -128,57 +128,57 @@ replaceVarForPair v (AlphaVal a e) = AlphaVal a $ replaceVarForPair v e
 -- Taking a value pair containing at least one linear combination and translating it to the tensorProduct representation of states.
 -- This function is needed to allow pattern matching on applications such as: Cnot <0+1/sqrt(2),0+1/sqrt(2)>
 -- The example would be applied in the form: Cnot (1/sqrt(2)*1/sqrt(2)<0,0> + 1/sqrt(2)*1/sqrt(2)<0,1> + 1/sqrt(2)*1/sqrt(2)<1,0> + 1/sqrt(2)*1/sqrt(2)<1,1>)
-tensorProductRep :: V -> E
-tensorProductRep (PairV (Evalue e1) (PairV v1 v2)) = -- -- Infinite loop when PairV v1 v2 is normalized, but Evale e is not.
+distributiveProp :: V -> E
+distributiveProp (PairV (Evalue e1) (PairV v1 v2)) = -- -- Infinite loop when PairV v1 v2 is normalized, but Evale e is not.
                                                       if tensorPair /= PairV v1 v2
-                                                        then debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
-                                                                tensorProductRep (PairV (Evalue e1) tensorPair)
+                                                        then --debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
+                                                                distributiveProp (PairV (Evalue e1) tensorPair)
                         --We substitute the pair for a variable to avoid infinite recursion choosing this same pattern in every evaluation. This is a stupid solution, hence the name of the variable.
-                                                        else replaceVarForPair (PairV v1 v2) $ tensorProductRep (PairV (Evalue e1) (Xval "stupidVariable"))
-                                                        where tensorPair = removeEV $ Evalue $ tensorProductRep $ PairV v1 v2
+                                                        else replaceVarForPair (PairV v1 v2) $ distributiveProp (PairV (Evalue e1) (Xval "stupidVariable"))
+                                                        where tensorPair = removeEV $ Evalue $ distributiveProp $ PairV v1 v2
 -- Defining this case for the sake of completeness, but the interpreter should default to representing tuples as <v,<v2,v3>>.
 -- Need to make this clear when building the parser to allow the <v1,v2,...,vn> syntax.
-tensorProductRep (PairV (PairV v1 v2) (Evalue e1) ) = --debug ("tensor2:: " ++ show (PairV (PairV v1 v2) (Evalue e1)) ++ "\n")
+distributiveProp (PairV (PairV v1 v2) (Evalue e1) ) = ----debug ("tensor2:: " ++ show (PairV (PairV v1 v2) (Evalue e1)) ++ "\n")
                                                         if tensorPair /= PairV v1 v2
-                                                          then debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
-                                                                tensorProductRep (PairV tensorPair (Evalue e1))
+                                                          then --debug ("tensor1:: " ++ show (PairV (Evalue e1) (PairV v1 v2)) ++ "\n")
+                                                                distributiveProp (PairV tensorPair (Evalue e1))
                           --We substitute the pair for a variable to avoid infinite recursion choosing this same pattern in every evaluation. This is a stupid solution, hence the name of the variable.
-                                                          else replaceVarForPair (PairV v1 v2) $ tensorProductRep (PairV (Xval "stupidVariable") (Evalue e1))
-                                                          where tensorPair = removeEV $ Evalue $ tensorProductRep $ PairV v1 v2
-tensorProductRep (PairV (Evalue e1) (Evalue e2))
-  | AlphaVal (1:+0) (Val v1) <- e1 = tensorProductRep (PairV v1 $ removeEV (Evalue e2)) --Casting of val to eval is really annoying in this iplementation.
-  | AlphaVal (1:+0) (Val v2) <- e2 = tensorProductRep (PairV (removeEV (Evalue e1)) v2)
+                                                          else replaceVarForPair (PairV v1 v2) $ distributiveProp (PairV (Xval "stupidVariable") (Evalue e1))
+                                                          where tensorPair = removeEV $ Evalue $ distributiveProp $ PairV v1 v2
+distributiveProp (PairV (Evalue e1) (Evalue e2))
+  | AlphaVal (1:+0) (Val v1) <- e1 = distributiveProp (PairV v1 $ removeEV (Evalue e2)) --Casting of val to eval is really annoying in this iplementation.
+  | AlphaVal (1:+0) (Val v2) <- e2 = distributiveProp (PairV (removeEV (Evalue e1)) v2)
   | otherwise = let  c1 = pairAlphasWithValues True e1
                      c2 = pairAlphasWithValues True e2
-                 in debug ("tensor3:: " ++ show (PairV (Evalue e1) (Evalue e2)) ++ "\n")
+                 in --debug ("tensor3:: " ++ show (PairV (Evalue e1) (Evalue e2)) ++ "\n")
                       combPairs (pairThem c1 c2)
-tensorProductRep (PairV (Evalue e1) v2) =  let c1 = pairAlphasWithValues True (tensorProductRepresentation $ removeVE e1)
-                                               c2 = [((1:+0), tensorProductRep v2)]
-                                               in  debug ("tensor4:: " ++ show (PairV (Evalue e1) v2) ++ "\n")
+distributiveProp (PairV (Evalue e1) v2) =  let c1 = pairAlphasWithValues True (distributivePropExtended $ removeVE e1)
+                                               c2 = [((1:+0), distributiveProp v2)]
+                                               in  --debug ("tensor4:: " ++ show (PairV (Evalue e1) v2) ++ "\n")
                                                     combPairs (pairThem c1 c2)
-tensorProductRep (PairV v2 (Evalue e1)) =  let c1 = [((1:+0), tensorProductRep v2)]
-                                               c2 = pairAlphasWithValues True (tensorProductRepresentation $ removeVE e1)
-                                               in  debug ("tensor5:: " ++ show (PairV v2 (Evalue e1)) ++ "\n")
+distributiveProp (PairV v2 (Evalue e1)) =  let c1 = [((1:+0), distributiveProp v2)]
+                                               c2 = pairAlphasWithValues True (distributivePropExtended $ removeVE e1)
+                                               in  --debug ("tensor5:: " ++ show (PairV v2 (Evalue e1)) ++ "\n")
                                                     combPairs (pairThem c1 c2)
-tensorProductRep (Evalue e)= debug ("tensor6:: " ++ show (Evalue e) ++ "\n")
-                                tensorProductRepresentation e
-tensorProductRep (PairV v1 v2) =
+distributiveProp (Evalue e)= --debug ("tensor6:: " ++ show (Evalue e) ++ "\n")
+                                distributivePropExtended e
+distributiveProp (PairV v1 v2) =
                                 if containsAmplitude v1
-                                    then Val $ PairV (removeEV $ Evalue $ tensorProductRep v1) (v2)
+                                    then Val $ PairV (removeEV $ Evalue $ distributiveProp v1) (v2)
                                 else Val $ PairV v1 v2
   --Val $ PairV v1 v2
 --Treating lists of linear combination:
-tensorProductRep (InjR (PairV v1 v2)) =
+distributiveProp (InjR (PairV v1 v2)) =
                                         if thisTensor == Val (InjR (PairV v1 v2))
-                                          then debug("TensorListStopped" ++ show (PairV v1 v2))
+                                          then --debug("TensorListStopped" ++ show (PairV v1 v2))
                                                 thisTensor
-                                          else debug("TensorList " ++ show (PairV v1 v2))
-                                                tensorProductRepresentation thisTensor
-                                        where thisTensor = listCombsToCombLists (InjR $ removeEV $ Evalue $ tensorProductRep (PairV v1 v2))
-tensorProductRep (InjL EmptyV) = Val $ InjL EmptyV
-tensorProductRep v = debug("Tensor Nada")
+                                          else --debug("TensorList " ++ show (PairV v1 v2))
+                                                distributivePropExtended thisTensor
+                                        where thisTensor = listCombsToCombLists (InjR $ removeEV $ Evalue $ distributiveProp (PairV v1 v2))
+distributiveProp (InjL EmptyV) = Val $ InjL EmptyV
+distributiveProp v = --debug("Tensor Nada")
                       Val $ v
---tensorProductRep v = error $ "TensorRep undefined for: " ++ show v
+--distributiveProp v = error $ "TensorRep undefined for: " ++ show v
 
 containsAmplitude :: V -> Bool
 containsAmplitude (Evalue e)
@@ -200,25 +200,34 @@ removeVE (Val (Evalue e)) = e
 removeVE e = e
 
 
-tensorProductRepresentation :: E -> E
-tensorProductRepresentation (Val (Evalue e)) = tensorProductRepresentation e
-tensorProductRepresentation (Val v) = tensorProductRep v
-tensorProductRepresentation (AlphaVal a (Val (PairV v1 v2))) = algebraicProperties $ AlphaVal a (tensorProductRep $ PairV v1 v2)
-tensorProductRepresentation (AlphaVal a (Val (InjR v)))
-  | (Evalue (Val (PairV v1 v2))) <- v = tensorProductRepresentation $ AlphaVal a (Val (InjR (PairV v1 v2)))
+distributivePropExtended :: E -> E
+distributivePropExtended (Val (Evalue e)) = distributivePropExtended e
+distributivePropExtended (Val v) = distributiveProp v
+distributivePropExtended (AlphaVal a (Val (PairV v1 v2))) = algebraicProperties $ AlphaVal a (distributiveProp $ PairV v1 v2)
+distributivePropExtended (AlphaVal a (Val (InjR v)))
+  | (Evalue (Val (PairV v1 v2))) <- v = distributivePropExtended $ AlphaVal a (Val (InjR (PairV v1 v2)))
   | (PairV v1 v2) <- v,
-    a == (1:+0) = tensorProductRep (InjR (PairV v1 v2))
+    a == (1:+0) = distributiveProp (InjR (PairV v1 v2))
   | (PairV v1 v2) <- v, --Treat it as normal pair of combinations and readd the list constructor after.
-    a /= (1:+0) = readdListCons $ algebraicProperties $ AlphaVal a (tensorProductRep $ PairV v1 v2)
-  | otherwise = AlphaVal a (tensorProductRepresentation (Val (InjR v)))
-tensorProductRepresentation (AlphaVal a e) = AlphaVal a (tensorProductRepresentation e) --
-tensorProductRepresentation (Combination e1 e2) = Combination (tensorProductRepresentation e1) (tensorProductRepresentation e2)--
+    a /= (1:+0) = readdListCons $ algebraicProperties $ AlphaVal a (distributiveProp $ PairV v1 v2)
+  | otherwise = AlphaVal a (distributivePropExtended (Val (InjR v)))
+distributivePropExtended (AlphaVal a e) = AlphaVal a (distributivePropExtended e) --
+distributivePropExtended (Combination e1 e2) = Combination (distributivePropExtended e1) (distributivePropExtended e2)--
   --These cases are needed to make sure that we don't stop before working on the outrer layer of a list. Without them we stop at: 0.3[InjL,0.5[x,y]+0.5[z,w]]
   --Without proper guards we get ourselves into an infinite recursion. SAD.
-tensorProductRepresentation e = e
+distributivePropExtended e = e
 
 combFullyReduced :: E -> Bool
 combFullyReduced (Combination e1 e2)
+  --General values
+  | AlphaVal a (AlphaVal b e) <- e1 = False
+  | AlphaVal a (AlphaVal b e) <- e2 = False
+  | AlphaVal a (Combination e3 e4) <- e1 = False
+  | AlphaVal a (Combination e3 e4) <- e2 = False
+  | Combination e3 e4 <- e1,
+    Combination e5 e6 <- e2 = combFullyReduced e1 && combFullyReduced e2 -- Both are combinations
+  | Combination e3 e4 <- e1 = combFullyReduced e1 -- Only e1 is combination
+  | Combination e3 e4 <- e2 = combFullyReduced e2 -- Only e2 is combination
   -- Lists::
   | AlphaVal a (Val (InjR (PairV v1 v2))) <- e1
       = case v1 of
@@ -244,14 +253,8 @@ combFullyReduced (Combination e1 e2)
             otherwise -> case v2 of
                             Evalue e  -> False
                             otherwise -> True
-  --Other values
-  | AlphaVal a (AlphaVal b e) <- e1 = False
-  | AlphaVal a (AlphaVal b e) <- e2 = False
-  | AlphaVal a (Combination e3 e4) <- e1 = False
-  | AlphaVal a (Combination e3 e4) <- e2 = False
-  | Combination e3 e4 <- e1 = False
-  | Combination e3 e4 <- e2 = combFullyReduced e2
-  | otherwise =  True
+  | otherwise =  debug ("FullyReduced: " ++ show (Combination e1 e2))
+                    True
 combFullyReduced e = True
 
 listCombsToCombLists :: V -> E
@@ -321,9 +324,9 @@ buildLamFromFix f v fix = let listLams = findFixedPoint f 0 v fix
                               fixedNameIsoPairs = findFixedPoint f 0 v fix
                               (names,isos) = listsFromPairs fixedNameIsoPairs
                               lambdaChain = lambdaBuilding names fix'
-                              appChain = debug ("Lams: " ++ show lambdaChain ++ "\n------------\n")
+                              appChain = --debug ("Lams: " ++ show lambdaChain ++ "\n------------\n")
                                             appBuilding (reverse isos) lambdaChain
-                              in debug ("::: " ++ show appChain ++ "\n------------\n")
+                              in --debug ("::: " ++ show appChain ++ "\n------------\n")
                                    appChain
 
 lambdaBuilding :: [String] -> Iso -> Iso
@@ -339,24 +342,24 @@ findFixedPoint :: String -> Int -> V -> Iso -> [(String,Iso)]
 --CaseS of empty list
 findFixedPoint f i (InjL EmptyV) fix = let fix' = renameInFixedPoint f (i+1) fix
                                            pairNameIso = ((f ++ show i), renameIsoVars i fix')
-                                           in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+                                           in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
                                                 [pairNameIso] -- error ("EmptyV")
 -- findFixedPoint f i (PairV list _) fix = let fix' = renameInFixedPoint f (i+1) fix
 --                                             pairNameIso = ((f ++ show i), renameIsoVars i fix')
---                                             in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+--                                             in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
 --                                                 [pairNameIso] -- error ("PAIRV")
 findFixedPoint f i (PairV (InjL v) _) fix = findFixedPoint f i (InjL v) fix
 findFixedPoint f i (PairV (InjR v) _) fix = findFixedPoint f i (InjR v) fix
 findFixedPoint f i (PairV _ v2) fix = findFixedPoint f i v2 fix -- Allowing lists to be put at the end of a tuple.
 -- --Cases where we apply a tuple of linear combinations on a fix-point iso.
--- findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ tensorProductRep (PairV (Evalue e) t)) fix
+-- findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ distributiveProp (PairV (Evalue e) t)) fix
 --Case of a list with elements -- Need to keep unfolding the iso.
 findFixedPoint f i (InjR (PairV h t)) fix
   | Evalue (Val v') <- h = findFixedPoint f i (InjR (PairV v' t)) fix
   | Evalue (Val v') <- t = findFixedPoint f i (InjR (PairV h v')) fix
   |otherwise                              = let fix' = renameInFixedPoint f (i+1) fix
                                                 pairNameIso = ((f ++ show i), renameIsoVars i fix')
-                                                in debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+                                                in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
                                                     pairNameIso : findFixedPoint f (i+1) t fix
 findFixedPoint f i (InjR (Evalue (Val v))) fix = findFixedPoint f i (InjR v) fix
 --Special case for applying a Linear Combination to a fixPoint.
@@ -453,7 +456,7 @@ replace (PairTerm v1 v2) sig  = PairV (replace v1 sig) (replace v2 sig)
 replaceV:: V -> Sigma ->V
 replaceV (Xval x) sig = case lookup (x) sig of
                           Nothing -> error $ "Did not find Variable: " ++ show x ++ " in context: " ++ show sig--This is wrong!
-                          Just v -> debug ("Value: " ++ show v ++ "\n------------\n")
+                          Just v -> --debug ("Value: " ++ show v ++ "\n------------\n")
                                       v
 replaceV (PairV v1 v2) sig = PairV (replaceV v1 sig) (replaceV v2 sig)
 replaceV (InjR v) sig = InjR $ replaceV v sig
@@ -506,32 +509,32 @@ distributiveLetp s p e b = error $ "undefined operation on " ++ show s ++ show p
 reduceE :: Sigma -> E -> V
 reduceE sigma (LetE (Xprod s) iso p2 e) = let v = replaceInP p2 sigma
                                               v' = applicativeContext (Omega iso (ValueT v))
-                                              sig2 = debug("Pair: " ++ show (Xprod s) ++ "  Value:" ++ show v')
+                                              sig2 = --debug("Pair: " ++ show (Xprod s) ++ "  Value:" ++ show v')
                                                         catchMaybe errorString $ matching [] (productVal (Xprod s)) v'
                                                           where errorString = "Failed to match on LetE: " ++ show (Xprod s) ++ " = " ++ show v'
-                                              in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
+                                              in --debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
                                                               reduceE (sig2++sigma) e
 reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
                                         v' = applicativeContext (Omega iso (ValueT v))
                                         in case v' of
                                             Evalue (Combination e1 e2) -> Evalue $ distributiveLetp sigma p (Combination e1 e2) e
-                                            otherwise -> let sig2 = debug("Pair: " ++ show p ++ "  Value:" ++ show v')
+                                            otherwise -> let sig2 = --debug("Pair: " ++ show p ++ "  Value:" ++ show v')
                                                                       catchMaybe errorString $ matching [] (productVal p) v'
                                                                         where errorString = "2-Failed to match LetE: " ++ show p ++ " = " ++ show v'
-                                                         in debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
+                                                         in --debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
                                                               reduceE (sig2++sigma) e
-reduceE sigma (Val v) = debug("Replacing v: " ++ show v ++ " with context: " ++ show sigma)
+reduceE sigma (Val v) = --debug("Replacing v: " ++ show v ++ " with context: " ++ show sigma)
                           replaceV v sigma
 reduceE sigma (Combination e1 e2)
   | AlphaVal a1 e' <- e1,
     a1 == 0 = (reduceE sigma e2) --Trimming the zeroes
   | AlphaVal a2 e' <- e2,
     a2 == 0 = (reduceE sigma e1)
-  | otherwise = debug("Combination...")
+  | otherwise = --debug("Combination...")
                   Evalue (Combination (Val(reduceE sigma e1)) (Val (reduceE sigma e2)))
 reduceE sigma (AlphaVal 0 e) = Evalue $ AlphaVal 0 e --AS per algebraic rules, if alpha is 0 the expression is void, so we don't evaluate it
 reduceE sigma (AlphaVal alpha e) = Evalue $ AlphaVal alpha $ Val $ reduceE sigma e
---reduceE sigma e = debug("No evaluation for: " ++ show e)
+--reduceE sigma e = --debug("No evaluation for: " ++ show e)
 --                    Evalue e
 
 
@@ -541,14 +544,14 @@ reduceLinearE a sig e = reduceE sig e
 
 isoReducing :: Iso -> Iso
 isoReducing (App (Lambda f omega) (App omega2 omega3)) = case substitution [] f omega2 omega of
-                                                            Nothing -> debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
+                                                            Nothing -> --debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
                                                                         omega
-                                                            Just subs -> debug("\nSubstituted: " ++ show subs)
+                                                            Just subs -> --debug("\nSubstituted: " ++ show subs)
                                                                           isoReducing (App subs omega3)
 isoReducing (App (Lambda f omega) omega2) = case substitution [] f omega2 omega of
-                                                Nothing -> debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
+                                                Nothing -> --debug("\nSubstitution failed:" ++ f ++ " for " ++ show omega2 ++ " in" ++ show omega)
                                                             omega --Should never happen?
-                                                Just subs -> debug("\nSubstituted: " ++ show subs)
+                                                Just subs -> --debug("\nSubstituted: " ++ show subs)
                                                               subs
 isoReducing (App (App iso1 iso2) iso3) = isoReducing (App (isoReducing (App iso1 iso2)) iso3)
 -- Does the language allow applications such as (iso1 (iso2 iso3)), where iso1 and iso2 are both higher order isos?? Wasn't really clear
@@ -581,7 +584,7 @@ substitution boundVars f omega2 (Clauses listVe) = Just $ Clauses $ substitution
                                         --                   Nothing -> Just $ App s1 iso2
                                         --                   Just s2 -> Just $ App s1 s2
 substitution boundVars f omega2 (Fixpoint g iso) = Just $ Fixpoint g $ testSubs iso $ substitution (g:boundVars) f omega2 iso
---substitution f omega2 iso = debug ("om2: " ++ show omega2 ++ "is: " ++ show iso)
+--substitution f omega2 iso = --debug ("om2: " ++ show omega2 ++ "is: " ++ show iso)
   --                            Nothing
 
 --Goes through the clauses, substituting isos found in LetExpressions. Returns the substituted clauseList
@@ -607,16 +610,16 @@ matchClauses [] v i = ([],i)
 -- matchClauses list (Evalue v) i = matchLinearCombinations list v i
 matchClauses (ve:list) v i = let sig =  matching [] (fst ve) v
                               in case sig of
-                                    Just sigma -> debug("matched: " ++ show v ++ "sig:" ++ show sig)
+                                    Just sigma -> --debug("matched: " ++ show v ++ "sig:" ++ show sig)
                                                       (sigma,i)
-                                    Nothing    -> debug("Can't match pattern: " ++ show (fst ve) ++ " with value:" ++ show v)
+                                    Nothing    -> --debug("Can't match pattern: " ++ show (fst ve) ++ " with value:" ++ show v)
                                                       matchClauses list v $ i+1
 
 -- Applies pattern-matching to all values in a linear combination,
 -- generating the sum Wi by combining the results. Original values amplitudes are joined with the resulting ones.
 matchLinearCombinations :: [(V,E)] -> E -> Int -> Either [Char] V
 matchLinearCombinations ve e i = let --e' = algebraicProperties e -- IF we are doing the tensor rep, there's no need to apply the properties here.
-                                     tensorE = tensorProductRepresentation e -- For consistency. Will do nothing to a single qubit state, or a state already in tensor representation.
+                                     tensorE = distributivePropExtended e -- For consistency. Will do nothing to a single qubit state, or a state already in tensor representation.
                                                                               -- This is important on representing a n-qubit state as <q1,<q2,...>>
                                                                               -- In order for a function application to succeed, all members of a tuple need to be pure values
                                      vlist = grabValuesFromCombinations tensorE --e'
@@ -624,7 +627,7 @@ matchLinearCombinations ve e i = let --e' = algebraicProperties e -- IF we are d
                                      sigmas = [matchClauses ve (v) 0 | v <- vs]
                                      in if checkSigmas sigmas (length ve) then
                                           let
-                                            --wi' = debug("List:: " ++ show vs)
+                                            --wi' = --debug("List:: " ++ show vs)
                                               --      [reductionRules (Omega (Clauses ve) (ValueT v)) | v <- vs]
                                             wi = trimZeroes [reduceLinearE a (fst s) (snd $ ve !! (snd s)) | s <- sigmas | a <- alphas]
                                             summs = sumWi alphas wi
@@ -685,19 +688,48 @@ algebraicProperties (Combination (AlphaVal a e1) (AlphaVal b e2))
   | a == (0:+0) = algebraicProperties $ AlphaVal b e2
   | b == (0:+0) = algebraicProperties $ AlphaVal a e1
   | e1 == e2 = algebraicProperties $ AlphaVal (a+b) e1
-  | otherwise = debug("-,-")
+  | otherwise = --debug("-,-")
                   (Combination (algebraicProperties $ AlphaVal a e1) (algebraicProperties $ AlphaVal b e2))
 --algebraicProperties (Combination (AlphaVal a e1) e2) = Combination (algebraicProperties (AlphaVal a e1)) (algebraicProperties e2)
 algebraicProperties (Combination e1 e2)
+  -- = if combFullyReduced (Combination e1 e2)
+  --     then remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
+  --   else case e1 of
+  --          AlphaVal a (AlphaVal b e) -> algebraicProperties $ Combination (algebraicProperties e1) e2
+  --          AlphaVal a (Combination e3 e4) -> algebraicProperties $ Combination (algebraicProperties e1) e2
+  --          Combination e3 e4 -> if combFullyReduced (e1)
+  --                                    then debug("Combination: e1 reduced " ++ show e1)
+  --                                           algebraicProperties $ Combination e1 (algebraicProperties e2)
+  --                                else debug("Combination2: e1 not done" ++ show e1)
+  --                                       algebraicProperties $ Combination (algebraicProperties e1) e2
+  --          otherwise ->  case e2 of
+  --                            AlphaVal a (AlphaVal b e) -> algebraicProperties $ Combination e1 (algebraicProperties e2)
+  --                            AlphaVal a (Combination e3 e4) -> algebraicProperties $ Combination e1 (algebraicProperties e2)
+  --                            Combination e3 e4 -> if combFullyReduced (e2)
+  --                                                      then debug("Combination3: both reduced" ++ show e2)
+  --                                                             algebraicProperties $ Combination e1 e2 -- Should never arise???
+  --                                                  else debug("Combination4: e2 not done" ++ show e2)
+  --                                                         algebraicProperties $ Combination e1 (algebraicProperties e2)
+  --                            otherwise -> Combination e1 e2
   | AlphaVal a (Combination e3 e4) <- e1 = algebraicProperties $ Combination (algebraicProperties e1) e2
   | AlphaVal a (Combination e3 e4) <- e2 = algebraicProperties $ Combination e1 (algebraicProperties e2)
-  | otherwise = let e' = pairAlphasWithValues True (Combination e1 e2)
-                                            in remakeCombination $ addAllCombinations e'
+  | otherwise = remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
+
 algebraicProperties (Val v)
   | Evalue e <- v = algebraicProperties e
   | otherwise = Val v
 algebraicProperties e = error $ "Undefined AlgebraicProperties for: " ++ show e
                         --error $ "no can do: " ++ show e
+
+--
+-- algebraicCombs :: E -> E
+-- algebraicCombs (Combination e1 e2)
+--   | Combination e3 e4 <- e1,
+--     Combination e4 e5 <- e2
+--       = if combFullyReduced e1 && combFullyReduced e2
+--           then algebraicProperties $ Combination e1 e2
+--         else algebraicCombs
+
 
 --Combination (a tt) (Combination a ff (combination a tt (Combination b ff)))
 
@@ -858,11 +890,11 @@ invertClauses (ve:listVE) = let e' = invertExtendedValue $ snd ve
 invertExtendedValue :: E -> E
 invertExtendedValue (LetE p1 omega p2 e) = let omega' = invertIso omega in
                                                case invertExtendedValue e of
-                                                (LetE p1' omega'' p2' e') -> debug("Inverted: " ++ (show $ LetE p1' omega'' p2' thisLet))
+                                                (LetE p1' omega'' p2' e') -> ----debug("Inverted: " ++ (show $ LetE p1' omega'' p2' thisLet))
                                                                                 swapBottom (LetE p1' omega'' p2' e') thisLet
                                                                                --LetE p1' omega'' p2' thisLet
                                                       where thisLet = LetE p2 omega' p1 e'
-                                                otherwise -> debug("Inverted: " ++ (show $ LetE p2 omega' p1 $ invertExtendedValue e))
+                                                otherwise -> ----debug("Inverted: " ++ (show $ LetE p2 omega' p1 $ invertExtendedValue e))
                                                               LetE p2 omega' p1 $ invertExtendedValue e
 invertExtendedValue e = e
 
