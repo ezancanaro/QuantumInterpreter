@@ -524,7 +524,7 @@ yingRecursiveWalk = let (walk,walkType) = walkTIso
                         resultN = startEval check2
                         resultN' = algebraicProperties $ algebraicProperties $ Val resultN
                         --builtIso =  (App (App recQ p) n)
-                        in "Trying to specify Yings's recursive Walk. It does exhibit the cancelling of the2 terms shown in the book, but the amplitudes here are not being reduced fully.\n"
+                        in "Trying to specify Yings's recursive Walk. It does exhibit the cancelling of the2 terms shown in the book.\n"
                             ++ "Also, there's a caveat that the terms only cancel each other AFTER the recursive call, so the behaviour is not exactly the one described there."
                               ++ "(TL[p] {+ H[d]} TR[P]) = \n" ++ show nonRecWalk
                                 ++ "\n\n(TL[p];X {+ H[d]} TR[P];X) = \n" ++ show recWalk
@@ -533,7 +533,7 @@ yingRecursiveWalk = let (walk,walkType) = walkTIso
                                     ++ "\n\n Applied to input: \n\t" ++ show input
                                       ++ "\n\nPartially reduces to (no algebraic properties applied): \n " ++ show partialResult
                                         ++ "\n\n Fully reduces to: \n" ++ show result
-                                            ++ "\n\n Non recursive::\n " ++ show resultN
+                                            ++ "\n\n Result before recursive call::\n " ++ show resultN
 
 
 --0.354~<InjL_(),

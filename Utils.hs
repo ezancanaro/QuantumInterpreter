@@ -5,8 +5,8 @@ import Data.Complex
 import Data.Number.CReal
 
 --Debugging flag-
-doDebug = --False
-          True -- Don't do it. Honestly. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
+doDebug = False
+          --True -- Don't do it. Honestly. Especially if you test a recursive function. It's legit madness. Believe me. And the voices.
 
 --Making debug statements easier to use
 debug a b = if doDebug then Debug.Trace.trace a b else b

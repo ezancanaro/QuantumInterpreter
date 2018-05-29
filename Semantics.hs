@@ -692,28 +692,28 @@ algebraicProperties (Combination (AlphaVal a e1) (AlphaVal b e2))
                   (Combination (algebraicProperties $ AlphaVal a e1) (algebraicProperties $ AlphaVal b e2))
 --algebraicProperties (Combination (AlphaVal a e1) e2) = Combination (algebraicProperties (AlphaVal a e1)) (algebraicProperties e2)
 algebraicProperties (Combination e1 e2)
-  -- = if combFullyReduced (Combination e1 e2)
-  --     then remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
-  --   else case e1 of
-  --          AlphaVal a (AlphaVal b e) -> algebraicProperties $ Combination (algebraicProperties e1) e2
-  --          AlphaVal a (Combination e3 e4) -> algebraicProperties $ Combination (algebraicProperties e1) e2
-  --          Combination e3 e4 -> if combFullyReduced (e1)
-  --                                    then debug("Combination: e1 reduced " ++ show e1)
-  --                                           algebraicProperties $ Combination e1 (algebraicProperties e2)
-  --                                else debug("Combination2: e1 not done" ++ show e1)
-  --                                       algebraicProperties $ Combination (algebraicProperties e1) e2
-  --          otherwise ->  case e2 of
-  --                            AlphaVal a (AlphaVal b e) -> algebraicProperties $ Combination e1 (algebraicProperties e2)
-  --                            AlphaVal a (Combination e3 e4) -> algebraicProperties $ Combination e1 (algebraicProperties e2)
-  --                            Combination e3 e4 -> if combFullyReduced (e2)
-  --                                                      then debug("Combination3: both reduced" ++ show e2)
-  --                                                             algebraicProperties $ Combination e1 e2 -- Should never arise???
-  --                                                  else debug("Combination4: e2 not done" ++ show e2)
-  --                                                         algebraicProperties $ Combination e1 (algebraicProperties e2)
-  --                            otherwise -> Combination e1 e2
-  | AlphaVal a (Combination e3 e4) <- e1 = algebraicProperties $ Combination (algebraicProperties e1) e2
-  | AlphaVal a (Combination e3 e4) <- e2 = algebraicProperties $ Combination e1 (algebraicProperties e2)
-  | otherwise = remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
+  = if combFullyReduced (Combination e1 e2)
+      then remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
+    else case e1 of
+           AlphaVal a (AlphaVal b e) -> algebraicProperties $ Combination (algebraicProperties e1) e2
+           AlphaVal a (Combination e3 e4) -> algebraicProperties $ Combination (algebraicProperties e1) e2
+           Combination e3 e4 -> if combFullyReduced (e1)
+                                     then debug("Combination: e1 reduced " ++ show e1)
+                                            algebraicProperties $ Combination e1 $ (algebraicProperties . distributivePropExtended) e2
+                                 else debug("Combination2: e1 not done" ++ show e1)
+                                        algebraicProperties $ Combination ((algebraicProperties . distributivePropExtended) e1) e2
+           otherwise ->  case e2 of
+                             AlphaVal a (AlphaVal b e) -> algebraicProperties $ Combination e1 (algebraicProperties e2)
+                             AlphaVal a (Combination e3 e4) -> algebraicProperties $ Combination e1 (algebraicProperties e2)
+                             Combination e3 e4 -> if combFullyReduced (e2)
+                                                       then debug("Combination3: both reduced" ++ show e2)
+                                                              algebraicProperties $ Combination e1 e2 -- Should never arise???
+                                                   else debug("Combination4: e2 not done" ++ show e2)
+                                                          algebraicProperties $ Combination e1 $ (algebraicProperties . distributivePropExtended) e2
+                             otherwise ->  Combination e1 e2
+  -- | AlphaVal a (Combination e3 e4) <- e1 = algebraicProperties $ Combination (algebraicProperties e1) e2
+  -- | AlphaVal a (Combination e3 e4) <- e2 = algebraicProperties $ Combination e1 (algebraicProperties e2)
+  -- | otherwise = remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
 
 algebraicProperties (Val v)
   | Evalue e <- v = algebraicProperties e
