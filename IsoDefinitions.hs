@@ -708,6 +708,50 @@ yingWalker = let list = Xval "list"
                  ty = Iso bool bool
                  in (lambda,ty)
 
+-- Single step Hadamard-walk on a triple <list,direction,position>
+-- Employed on an alternative representation of a recursive walk defined by Ying's foundation of quantum languages (page 281) as: [TL(p) Cond(H(d)) TR(p)]^n;[TL(p);X Cond(H(d)) TR(p)]
+singleStepWalkOnTripleLDP:: (Iso,T)
+singleStepWalkOnTripleLDP = let list = Xval "list"
+                                d = Xval "d"
+                                p = Xval "p"
+                                v1 = PairV (list) (PairV d p)
+                                let1 = LetE (Xprod "y") (IsoVar "had") (Xprod "d") let2
+                                let2 = LetE (PairP (Xprod "h1") (Xprod "p1")) (IsoVar "W") (PairP (Xprod "y") (Xprod "p")) c2
+                                --let3 = LetE (PairP  (Xprod "t1") (Xprod "p2")) (IsoVar "rec") (PairP (Xprod "t") (Xprod "p1")) c2
+                                output = PairV list $ PairV (Xval "h1") (Xval "p1")
+                                c2 =  AlphaVal (1:+0) (Val output)
+                                clauses = Clauses [(v1,let1)]
+                                lambda = Lambda "had" (Lambda "W" clauses)
+                                fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                                ty = Comp bool bool (Iso (Prod bool fiveBits) (Prod bool fiveBits)) -- Doesn't include the composition type of walkT, need to do this.
+                                in (lambda, ty)
+
+--Recursive hadamard walk using a list of bools as analog coins from Ying. Has an exta unmodified input d.
+-- Employed for the same reason as singleStepWalkOnTripleLDP.
+recursiveWalkOnTripleLDP :: (Iso,T)
+recursiveWalkOnTripleLDP = let h = Xval "h"
+                               y = Xval "y"
+                               t = Xval "t"
+                               list = InjR $ PairV h t
+                               d = Xval "d"
+                               p = Xval "p"
+                               v1 = InjL EmptyV
+                               pV2 = PairV (list) (PairV d p)
+                               pV1 = PairV v1 (PairV d p)
+                               c1 = Combination (AlphaVal (1:+0) (Val pV1)) $ AlphaVal (0:+0) (Val pV1)
+                               let1 = LetE (Xprod "y") (IsoVar "had") (Xprod "h") let2
+                               let2 = LetE (PairP (Xprod "h1") (Xprod "p1")) (IsoVar "W") (PairP (Xprod "y") (Xprod "p")) let3
+                               let3 = LetE (PairP  (Xprod "t1") (Xprod "p2")) (IsoVar "rec") (PairP (Xprod "t") (Xprod "p1")) c2
+                               newList = InjR $ PairV (Xval "h1") (Xval "t1")
+                               output = PairV newList (PairV (Xval "d") (Xval "p2"))
+                               c2 =  Combination  (AlphaVal (0:+0) (Val pV1)) $ AlphaVal (1:+0) (Val output)
+                               clauses = Clauses [(pV1,c1),(pV2,let1)]
+                               lambda = Lambda "had" (Lambda "W" (Fixpoint "rec" clauses))
+                               fiveBits = Prod bool (Prod bool (Prod bool (Prod bool bool)))
+                               ty = Comp bool bool (Iso (Prod (Rec bool) fiveBits) (Prod (Rec bool) fiveBits)) -- Doesn't include the composition type of walkT, need to do this.
+                               in (lambda, ty)
+
+
 yingWalkerNoRec :: (Iso,T)
 yingWalkerNoRec =
              let list = Xval "list"

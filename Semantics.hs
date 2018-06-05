@@ -629,7 +629,7 @@ matchLinearCombinations ve e i = let --e' = algebraicProperties e -- IF we are d
                                           let
                                             --wi' = --debug("List:: " ++ show vs)
                                               --      [reductionRules (Omega (Clauses ve) (ValueT v)) | v <- vs]
-                                            wi = trimZeroes [reduceLinearE a (fst s) (snd $ ve !! (snd s)) | s <- sigmas | a <- alphas]
+                                            wi = [reduceLinearE a (fst s) (snd $ ve !! (snd s)) | s <- sigmas | a <- alphas]
                                             summs = sumWi alphas wi
                                             result = Evalue $! algebraicProperties summs
                                             in Right result

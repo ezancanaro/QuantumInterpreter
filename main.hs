@@ -518,22 +518,28 @@ yingRecursiveWalk = let (walk,walkType) = walkTIso
                         partialResult = applicativeContext check
                         result = startEval check
                         -------- Different approach∷
-                        (nRecYing,_) = yingWalkerNoRec
-                        mynRecYing = App nRecYing myNonRecWalk
-                        check2 = Omega mynRecYing (ValueT d0p0)
-                        resultN = startEval check2
-                        resultN' = algebraicProperties $ algebraicProperties $ Val resultN
+                        (singleStepLDP,_) = singleStepWalkOnTripleLDP
+                        (recursiveLDP,_) = recursiveWalkOnTripleLDP
+                        single = isoReducing $ App (App singleStepLDP had) myWalk
+                        recurs = isoReducing $ App (App recursiveLDP had) myWalk
+                        initialStep = Omega single input
+                        sequentialSteps = Omega single (Omega single (initialStep))
+                        recursiveStep = Omega recurs sequentialSteps
+                        evalSeq2 = startEval sequentialSteps
+                        evalRec2 = startEval recursiveStep
                         --builtIso =  (App (App recQ p) n)
-                        in "Trying to specify Yings's recursive Walk. It does exhibit the cancelling of the2 terms shown in the book.\n"
-                            ++ "Also, there's a caveat that the terms only cancel each other AFTER the recursive call, so the behaviour is not exactly the one described there."
-                              ++ "(TL[p] {+ H[d]} TR[P]) = \n" ++ show nonRecWalk
+                        in "Yings's recursive Walk as described in page 281, example (7.2.2). It does exhibit the cancelling of the terms shown in the book.\n"
+                            ++ "Though, on a represetation using a chain of let bindings, there's a caveat that the terms only cancel each other AFTER the recursive call, so the behaviour is not exactly the one described there."
+                              ++ "The equations in the book are built as isos such that \n\n(TL[p] {+ H[d]} TR[P]) = \n" ++ show nonRecWalk
                                 ++ "\n\n(TL[p];X {+ H[d]} TR[P];X) = \n" ++ show recWalk
-                                  ++ "\n\nThen X, with n being 3 is \n" ++ show yings
+                                  ++ "\n\nThen the whole recursive iso, with n being 3 is given by iso:\n" ++ show yings
                                    -- ++ "\n\n " ++ show mm
                                     ++ "\n\n Applied to input: \n\t" ++ show input
-                                      ++ "\n\nPartially reduces to (no algebraic properties applied): \n " ++ show partialResult
+                                      ++ "\n\nPartially reduces to (No algebraic properties applied): \n " ++ show partialResult
                                         ++ "\n\n Fully reduces to: \n" ++ show result
-                                            ++ "\n\n Result before recursive call::\n " ++ show resultN
+                                            ++ "\n\n A different approach, modifying the single and recursive step isos to work on triples, leads to evaluating a term\n "
+                                              ++ "recStep (singleStep (singleStep (singleStep " ++ show input ++" ))). This evaluates to the same combination: \n\n" ++ show evalRec2
+                                                ++ "\n\nIn this case, the cancelling of amplitudes occurs before de recursive call, as seen by evaluating just the sequential steps (amplitudes 0 after a + sign):\n\n" ++ show evalSeq2
 
 
 --0.354~<InjL_(),
