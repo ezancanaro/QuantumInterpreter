@@ -90,7 +90,7 @@ reductionRules (Omega (Fixpoint f (Clauses isoDefs)) (ValueT v)) = let unfoldedR
 --                                                                           if checkIfFixedPoint term f then reduceE (fst match) term
 --                                                                           else reductionRules (Omega (isoReducing (Fixpoint f (Clauses isoDefs))) (ValueV t))
 --                                                                                     --not correct
-reductionRules t = error $ "Botched reduction: " ++ show t
+reductionRules t = error $ "Failed to reuce: " ++ show t
 
 --Function to apply simple values to isos
 applyValueToClauses :: Iso -> Term -> V
@@ -255,6 +255,7 @@ combFullyReduced (Combination e1 e2)
                             otherwise -> True
   | otherwise =  debug ("FullyReduced: " ++ show (Combination e1 e2))
                     True
+combFullyReduced (AlphaVal a (AlphaVal b e)) = False
 combFullyReduced e = True
 
 listCombsToCombLists :: V -> E
@@ -508,14 +509,14 @@ distributiveLetp s p e b = error $ "undefined operation on " ++ show s ++ show p
 
 reduceE :: Sigma -> E -> V
 reduceE sigma (LetE (Xprod s) iso p2 e) = let v = replaceInP p2 sigma
-                                              v' = applicativeContext (Omega iso (ValueT v))
+                                              v' = startEval (Omega iso (ValueT v))
                                               sig2 = --debug("Pair: " ++ show (Xprod s) ++ "  Value:" ++ show v')
                                                         catchMaybe errorString $ matching [] (productVal (Xprod s)) v'
                                                           where errorString = "Failed to match on LetE: " ++ show (Xprod s) ++ " = " ++ show v'
                                               in --debug("V: " ++ show v ++ " V': " ++ show v' ++ " Sig2: " ++ show sig2)
                                                               reduceE (sig2++sigma) e
 reduceE sigma (LetE p iso p2 e) = let   v = replaceInP p2 sigma
-                                        v' = applicativeContext (Omega iso (ValueT v))
+                                        v' = startEval (Omega iso (ValueT v)) -- Need to make sure the combination is fully reduced to normal form before evaluating
                                         in case v' of
                                             Evalue (Combination e1 e2) -> Evalue $ distributiveLetp sigma p (Combination e1 e2) e
                                             otherwise -> let sig2 = --debug("Pair: " ++ show p ++ "  Value:" ++ show v')
@@ -673,6 +674,11 @@ grabValuesFromCombinations (Val v) = [((1:+0),v)]
 grabValuesFromCombinations e = error $ "Couldn't extract value from: " ++ show e
 -- grabValuesFromCombinations (AlphaVal a e) = [(a,v)] where v = grabValuesFromCombinations e
 
+{- -}
+fullyReduceAlgebra :: E -> E
+fullyReduceAlgebra e = if combFullyReduced e then e
+                       else fullyReduceAlgebra $ algebraicProperties e
+
 --Implements the algebraic properties for linear combination.
 --
 algebraicProperties :: E -> E
@@ -693,7 +699,8 @@ algebraicProperties (Combination (AlphaVal a e1) (AlphaVal b e2))
 --algebraicProperties (Combination (AlphaVal a e1) e2) = Combination (algebraicProperties (AlphaVal a e1)) (algebraicProperties e2)
 algebraicProperties (Combination e1 e2)
   = if combFullyReduced (Combination e1 e2)
-      then remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
+      then debug("Reduced combination: " ++ show (Combination e1 e2))
+            remakeCombination $ addAllCombinations $ pairAlphasWithValues True (Combination e1 e2)
     else case e1 of
            AlphaVal a (AlphaVal b e) -> algebraicProperties $ Combination (algebraicProperties e1) e2
            AlphaVal a (Combination e3 e4) -> algebraicProperties $ Combination (algebraicProperties e1) e2
@@ -721,21 +728,7 @@ algebraicProperties (Val v)
 algebraicProperties e = error $ "Undefined AlgebraicProperties for: " ++ show e
                         --error $ "no can do: " ++ show e
 
---
--- algebraicCombs :: E -> E
--- algebraicCombs (Combination e1 e2)
---   | Combination e3 e4 <- e1,
---     Combination e4 e5 <- e2
---       = if combFullyReduced e1 && combFullyReduced e2
---           then algebraicProperties $ Combination e1 e2
---         else algebraicCombs
 
-
---Combination (a tt) (Combination a ff (combination a tt (Combination b ff)))
-
--- algebraCombs :: [(Alpha,E)] -> [(Alpha,E)]
--- algebraCombs [] = []
--- algebraCombs ((a1,e1):list) = let a' = algebraicProperties (AlphaVal a1 e1)
 
 
 addAllCombinations :: [(Alpha,E)] -> [(Alpha,E)]

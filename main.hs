@@ -488,9 +488,10 @@ recQuantumWalk = let (recQ,ty) = recursiveBidimensionalWalk
                      in "Recursive bidimensional Quantum Walk:\n" ++ show recQ ++ "\n\n Starting at position zero with coins:\n\t" ++ show inputList
                            ++ "\n\nEvals to:\n\t" ++ show result
 
-
-yingRecursiveWalk :: String
-yingRecursiveWalk = let (walk,walkType) = walkTIso
+-- Recursive quantum walk based on the example described in pg281 of Ying's foundation of quantum.
+yingBasedRecursiveWalk :: String
+yingBasedRecursiveWalk =
+                    let (walk,walkType) = walkTIso
                         (nonRecWalk,_) = isoWalk
                         (recWalk,_) = recursiveWalk
                         (nextInt,_) = isoNext
@@ -552,6 +553,53 @@ yingRecursiveWalk = let (walk,walkType) = walkTIso
           -- +0.707~<InjR_(), --1~InjL_()>
             -- >
       -- >
+
+-- Isos implementing the example 7.2.2 from Yings book, pg 281.
+yingExample722 :: String
+yingExample722 = let (walk,walkType) = walkTIso
+                     (nonRecWalk,_) = isoWalk
+                     (composedWalk,_) = singleStepComposing3
+                     (nextInt,_) = isoNext
+                     (prevInt,_) = isoPrevious
+                     (nextSign,_) = nextSigned
+                     (prevSign,_) = prevSigned
+                     (had,_) = hadIso
+                     (yings,_)= properYingWalk
+                     prev = (App (App prevSign nextInt) prevInt)
+                     p = isoReducing prev -- Should not really be needed if we can build the iso this way.
+                     next = (App (App nextSign nextInt) prevInt)
+                     n = isoReducing next
+                     myWalk = isoReducing  (App (App walk p) n)
+                     myNonRecWalk = isoReducing $ App (App nonRecWalk had) myWalk
+                     singleComposed = isoReducing $ App composedWalk myNonRecWalk
+                     properYing = App (App yings singleComposed) myNonRecWalk
+
+                     inputList = applicativeContext $ boolLists [True]
+                     v = fl $ buildInt 0 4 'v'
+                     zero = PairV (tt) v
+                     d0p0 = zero
+                     input = ValueT $ PairV inputList d0p0
+                     check = Omega properYing input
+                     partialResult = applicativeContext check
+                     result = startEval check
+
+                     t = startEval $ Omega singleComposed (ValueT $ PairV tt zero)
+
+                     ---
+                     (exampleLetChain,_) = nonCancellingYing722
+                     letchain = App exampleLetChain myNonRecWalk
+                     checkL = Omega letchain input
+                     resultLetChain = startEval checkL
+                     in "Ying's recursive quantum walk from example 7.2.2, pg 281.\n It's given by isos:\n"
+                          ++ show composedWalk ++ "\n\n" ++ show yings ++ "\n\n"
+                            ++ "Applied to input state: " ++ show input ++ "\n\n"
+                              -- ++ show t
+                              ++ "Reduces to (before algebraic properties) a combination where recursion is cancelled due to amplitudes: \n\n" ++ show partialResult
+                                ++ "\n\n Finally reduces to: \n\n" ++ show result
+                                  ++ "\n\n A second way of defining it using only a single Iso:\n" ++ show exampleLetChain
+                                    ++ "\n\n Gives the same final evaluation:\n\n " ++ show resultLetChain
+                                      ++ "\n\n The difference is in the fact that the cancelling of amplitudes only occurs after the recursion is applied to all values in linear combination, due to the way let expressions distributive property is treated."
+
 
 testTest :: String
 testTest = let (had23,_) = hadTwoOfThree
@@ -634,7 +682,7 @@ testf e1 e2
 main = do
 
         putStr ("tests: if | map | had | hadHad| mapAcc | cnot |  deutsch | grover | next | walk | 1dRecWalk | hadNId |"
-                  ++ "yingWalk || quit\n ")
+                  ++ "yingBasedWalk | yingExample7.2.2 || quit\n ")
         f <- getLine
         case f of
           "had" -> putStr testHad
@@ -655,8 +703,10 @@ main = do
           "hadNId" -> putStr testRecHad
           "2dRecWalk" -> putStr recQuantumWalk
           "1dRecWalk" -> putStr rWalk
-          "yingWalk" -> putStr yingRecursiveWalk
+          "yingBasedWalk" -> putStr yingBasedRecursiveWalk
           "trt" -> putStr trt
+          "yingExample7.2.2" -> putStr yingExample722
+          "c" -> putStr yingExample722
           otherwise -> putStr "Undefined Function...\n\n"
         -- putStr "\n\n\n"
       --  putStr myt
