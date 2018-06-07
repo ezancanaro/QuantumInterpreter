@@ -5,4 +5,5 @@
 *.o
 *.bat
 Tests.hs
+mainFUCKED.hs
 Output.txt

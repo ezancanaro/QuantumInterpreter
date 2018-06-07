@@ -175,10 +175,19 @@ distributiveProp (InjR (PairV v1 v2)) =
                                           else --debug("TensorList " ++ show (PairV v1 v2))
                                                 distributivePropExtended thisTensor
                                         where thisTensor = listCombsToCombLists (InjR $ removeEV $ Evalue $ distributiveProp (PairV v1 v2))
+distributiveProp (InjR (Evalue (Combination e1 e2))) = distributeInjective (Combination e1 e2) 'r'
 distributiveProp (InjL EmptyV) = Val $ InjL EmptyV
 distributiveProp v = --debug("Tensor Nada")
                       Val $ v
 --distributiveProp v = error $ "TensorRep undefined for: " ++ show v
+
+distributeInjective :: E -> Char -> E
+distributeInjective (Combination e1 e2) 'r' = Combination (distributeInjective e1 'r') (distributeInjective e2 'r')
+distributeInjective (AlphaVal a e) 'r' = AlphaVal a (distributeInjective e 'r')
+distributeInjective (Val v) 'r' = Val $ InjR v
+distributeInjective (Combination e1 e2) 'l' = Combination (distributeInjective e1 'l') (distributeInjective e2 'l')
+distributeInjective (AlphaVal a e) 'l' = AlphaVal a (distributeInjective e 'l')
+distributeInjective (Val v) 'l' = Val $ InjL v
 
 containsAmplitude :: V -> Bool
 containsAmplitude (Evalue e)
@@ -258,6 +267,7 @@ combFullyReduced (Combination e1 e2)
 combFullyReduced (AlphaVal a (AlphaVal b e)) = False
 combFullyReduced e = True
 
+--Transforms a list of combinations into a combination of lists
 listCombsToCombLists :: V -> E
 listCombsToCombLists (InjR (Evalue c))
   | Combination (AlphaVal a1 e1) (AlphaVal a2 e2) <- c = Combination (AlphaVal a1 (Val $ InjR $ Evalue e1)) ((AlphaVal a2 (Val $ InjR $ Evalue e2)))
@@ -321,30 +331,34 @@ isVlinear _ = False
 
 buildLamFromFix :: String -> V -> Iso -> Iso
 buildLamFromFix f v fix = let listLams = findFixedPoint f 0 v fix
-                              fix' = renameInFixedPoint f 0 fix
-                              fixedNameIsoPairs = findFixedPoint f 0 v fix
-                              (names,isos) = listsFromPairs fixedNameIsoPairs
-                              lambdaChain = lambdaBuilding names fix'
+                              -- fix' = renameInFixedPoint f 0 fix
+                              --fixedNameIsoPairs = findFixedPoint f 0 v fix
+                              --(names,isos) = listsFromPairs fixedNameIsoPairs
+                              lambdaChain = lambdaBuilding listLams fix
                               appChain = --debug ("Lams: " ++ show lambdaChain ++ "\n------------\n")
-                                            appBuilding (reverse isos) lambdaChain
+                                            appBuilding fix lambdaChain
                               in --debug ("::: " ++ show appChain ++ "\n------------\n")
                                    appChain
+
+--Get a list of isoVars, all being the same. Apply stuff sequentially to build the finite iso.
+
 
 lambdaBuilding :: [String] -> Iso -> Iso
 lambdaBuilding [] fix = fix
 lambdaBuilding (f:names) fix = Lambda f (lambdaBuilding names fix)
 
-appBuilding :: [Iso] -> Iso -> Iso
-appBuilding [] lambdaChain = lambdaChain
-appBuilding (iso:isos) lambdaChain = App (appBuilding isos lambdaChain) iso
+appBuilding :: Iso -> Iso -> Iso
+--appBuilding (iso:isos) lambdaChain = App (appBuilding isos lambdaChain) iso
+appBuilding iso (Lambda f iso') = App (Lambda f $ appBuilding iso iso') iso
+appBuilding iso iso' = iso'
 
-
-findFixedPoint :: String -> Int -> V -> Iso -> [(String,Iso)]
+findFixedPoint :: String -> Int -> V -> Iso -> [String]
 --CaseS of empty list
-findFixedPoint f i (InjL EmptyV) fix = let fix' = renameInFixedPoint f (i+1) fix
-                                           pairNameIso = ((f ++ show i), renameIsoVars i fix')
-                                           in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
-                                                [pairNameIso] -- error ("EmptyV")
+findFixedPoint f i (InjL EmptyV) fix = [f]
+                                        -- let fix' = renameInFixedPoint f (i+1) fix
+                                        --    pairNameIso = ((f ++ show i), renameIsoVars i fix')
+                                        --    in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+                                        --         [pairNameIso] -- error ("EmptyV")
 -- findFixedPoint f i (PairV list _) fix = let fix' = renameInFixedPoint f (i+1) fix
 --                                             pairNameIso = ((f ++ show i), renameIsoVars i fix')
 --                                             in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
@@ -353,20 +367,24 @@ findFixedPoint f i (PairV (InjL v) _) fix = findFixedPoint f i (InjL v) fix
 findFixedPoint f i (PairV (InjR v) _) fix = findFixedPoint f i (InjR v) fix
 findFixedPoint f i (PairV _ v2) fix = findFixedPoint f i v2 fix -- Allowing lists to be put at the end of a tuple.
 -- --Cases where we apply a tuple of linear combinations on a fix-point iso.
--- findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ distributiveProp (PairV (Evalue e) t)) fix
+--findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ distributiveProp (PairV (Evalue e) t)) fix
+findFixedPoint f i (InjR (PairV (Evalue (Combination e1 e2)) t )) fix = findFixedPoint f i (InjR (PairV (Evalue e1) t)) fix -- For the moment, considering all lists of the same size as the first value in combination.
+                                                                                                                            -- If that is not a safe assumption, the whole evaluation of fix-point needs to be altered.
 --Case of a list with elements -- Need to keep unfolding the iso.
 findFixedPoint f i (InjR (PairV h t)) fix
   | Evalue (Val v') <- h = findFixedPoint f i (InjR (PairV v' t)) fix
   | Evalue (Val v') <- t = findFixedPoint f i (InjR (PairV h v')) fix
-  |otherwise                              = let fix' = renameInFixedPoint f (i+1) fix
-                                                pairNameIso = ((f ++ show i), renameIsoVars i fix')
-                                                in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
-                                                    pairNameIso : findFixedPoint f (i+1) t fix
+  |otherwise                              = f : findFixedPoint f (i+1) t fix
+                                              -- let fix' = renameInFixedPoint f (i+1) fix
+                                              --   pairNameIso = ((f ++ show i), renameIsoVars i fix')
+                                              --   in --debug ("fix': " ++ show fix' ++ " || pair: " ++ show pairNameIso ++ "\n------------\n")
+                                              --       pairNameIso : findFixedPoint f (i+1) t fix
 findFixedPoint f i (InjR (Evalue (Val v))) fix = findFixedPoint f i (InjR v) fix
+findFixedPoint f i (InjR (Evalue e)) fix = findFixedPoint f i (InjR $ catchMaybe ("") $ extractValue e) fix
 --Special case for applying a Linear Combination to a fixPoint.
 --Since amplitudes are not taken into consideration when pattern-matching values, we ignore them to create the proper unfolded function.
 findFixedPoint f i (Evalue e) fix = findFixedPoint f i v fix
-                                      where v = catchMaybe ("Failed to find fixed point of " ++ show e)$ extractValue e
+                                      where v = catchMaybe ("Failed to find fixed point of " ++ show e) $ extractValue e
 findFixedPoint f i v iso = error $ "Cannot find fixPoint when applying to value: " ++ show v --Just in case of unexpected behavior. Should never arise.
 
 --  Looks at values from a linear combination in order to build the unfolded recursive Iso.
@@ -397,7 +415,7 @@ rename :: String -> Int -> E -> E
 rename f i (LetE p1 (IsoVar f') p2 e)
   | f' == f = LetE p1 (IsoVar (f ++ show i)) p2 (rename f i e)
   | otherwise = LetE p1 (IsoVar f') p2 (rename f i e)
-rename f i (LetE p1 iso p2 e) = LetE p1 (renameInFixedPoint f i iso) p2 (rename f i e) -- Not sure about this actually.
+rename f i (LetE p1 iso p2 e) = LetE p1 iso p2 (rename f i e) --We are only concerned with the fix clauses, don't need to intrude on these? If it's an app of isoVars though?
 rename f i (Combination e1 e2) = Combination (rename f i e1) (rename f i e2)
 rename f i e = e
 
