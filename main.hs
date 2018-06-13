@@ -192,7 +192,7 @@ testOracle = let eTT = Val tt --ExtendedValue true
                  pair = PairV (Evalue e1) (tt)
                  p1 = Combination (AlphaVal beta eTT) (AlphaVal alpha eFF)
                  pairTest = PairV (Evalue p1) (Evalue e2)
-                 (oracle,_) = oracle2
+                 (oracle,_) = oracleNot
                  (mynot,_) = not1
                  check = Omega (App oracle mynot) (ValueT pair)
                  result = startEval check
@@ -219,26 +219,29 @@ testOracle = let eTT = Val tt --ExtendedValue true
 
                  checkNew = Omega hadTensID (ValueT pairTest)
                  resultNew = startEval checkNew
-
-                 orac = (App oracle mynot)
+                 ---------------------- Actual isomorphism implementing the Deutsch algorithm
+                 --orac = (App oracle mynot)
                  (had,_) = hadIso
                  (dst,tyDst) = deutsch
                  delta = grabPatternTypesFromAnnotation (dst,tyDst)
                  typeC = typeCheck delta [] dst tyDst
                  input = ValueT $ PairV tt ff
-                 checkDst = Omega (App dst (App had (App orac hadTensID))) input
+                 checkDst = Omega (App dst (App had (App oracle hadTensID))) input
                  resultDst = startEval checkDst
-                 inverse = invertIso (App dst (App had (App orac hadTensID))) -- Inversion is not working properly yet. Need to check it.
+                 invDst = invertIso dst
+
+                 inverse = invertIso (App dst (App had (App oracle hadTensID))) -- Inversion is not working properly yet. Need to check it.
                  checkInv = Omega inverse $ ValueT resultDst
                  resultInv = startEval checkInv
 
                  -- te = equivalentStates (Val resultNew)
                  -- te' = distributivePropresentation te
 
-                 in "O: " ++ show cst
-                      ++ "Deutsch's algorithm with balanced oracle: \n" ++ show dst ++ "\nTypechecks to: " ++ show typeC
+                 in
+                      "Deutsch's algorithm with balanced oracle: \n" ++ show dst ++ "\nTypechecks to: " ++ show typeC
                         ++ "\n\nApplied to initial state: " ++ show input ++ "\n\n" ++ show resultDst
-                      --  ++"\n---------------\n\n Inverted iso: \n" ++ show inverse ++ "Applied to previous result:\n\n" ++ show resultInv
+                          ++ "\n\n-----------------\n\n" ++ show inverse
+                            ++"\n---------------\n\n Inverted iso: \n" ++ show invDst ++ "Applied to " ++ show resultDst ++ ":\n\n" ++ show resultInv
 
                   -- "2qubtis Oracle, with f(x) being NOT x::\n " ++ show oracle ++ "\t" ++ show pair ++ "\n\n Evalued to:\n\t"
                   --     ++ show (result)

@@ -368,8 +368,7 @@ findFixedPoint f i (PairV (InjR v) _) fix = findFixedPoint f i (InjR v) fix
 findFixedPoint f i (PairV _ v2) fix = findFixedPoint f i v2 fix -- Allowing lists to be put at the end of a tuple.
 -- --Cases where we apply a tuple of linear combinations on a fix-point iso.
 --findFixedPoint f i (InjR (PairV (Evalue e) t)) fix = findFixedPoint f i (Evalue $ distributiveProp (PairV (Evalue e) t)) fix
-findFixedPoint f i (InjR (PairV (Evalue (Combination e1 e2)) t )) fix = findFixedPoint f i (InjR (PairV (Evalue e1) t)) fix -- For the moment, considering all lists of the same size as the first value in combination.
-                                                                                                                            -- If that is not a safe assumption, the whole evaluation of fix-point needs to be altered.
+--findFixedPoint f i (InjR (PairV (Evalue (Combination e1 e2)) t )) fix = findFixedPoint f i (InjR (PairV (Evalue e1) t)) fix -- For the moment, considering all lists of the same size as the first value in combination.                                                                                                                          -- If that is not a safe assumption, the whole evaluation of fix-point needs to be altered.
 --Case of a list with elements -- Need to keep unfolding the iso.
 findFixedPoint f i (InjR (PairV h t)) fix
   | Evalue (Val v') <- h = findFixedPoint f i (InjR (PairV v' t)) fix

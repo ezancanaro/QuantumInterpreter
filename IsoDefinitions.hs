@@ -233,6 +233,24 @@ oracle2 = let (cnot,_) = simpleCnot
               ty = Iso (Prod bool bool) (Prod bool (Prod bool bool)) -- Not the right type!!
               in (oracle2,ty)
 
+oracleNot = let v1 = PairV tt (tt)
+                v2 = PairV tt (ff)
+                v3 = PairV ff (tt)
+                v4 = PairV ff (ff)
+                w1 = Val $ PairV tt ff
+                w2 = Val $ PairV tt tt
+                w3 = Val $ PairV ff tt
+                w4 = Val $ PairV ff ff
+                elist = [w1,w2,w3,w4]
+                c1 = buildOneZeroCombs elist 0 0
+                c2 = buildOneZeroCombs elist 1 0
+                c3 = buildOneZeroCombs elist 2 0
+                c4 = buildOneZeroCombs elist 3 0
+                clauses = Clauses [(v1,c1),(v2,c2),(v3,c3),(v4,c4)]
+                oracle2 = clauses
+                ty = Iso (Prod bool bool) ((Prod bool bool))
+                in (oracle2,ty)
+
 deutsch :: (Iso,T)
 deutsch = let v1 = PairV (Xval "x") (Xval "y")
               e1 = LetE (Xprod "h1") (IsoVar "had") (Xprod "x") e2
