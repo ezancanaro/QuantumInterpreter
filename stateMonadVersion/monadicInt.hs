@@ -123,17 +123,12 @@ testUnit::[E]->Bool
 testUnit = isUnitary . getLinearTerms
 
 isUnitary :: [[Alpha]] -> Bool
-isUnitary lists
-  | oZ lists = True
-  | otherwise   =  let mat =  debug(show lists ++ "\n")
-                              fromLists lists --Create matrix from lists
-                       conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
-                       inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
-                                    wrap $ inverse mat --The inverse matrix
-                       in if (conjugateTranspose) == inverseMat then debug("InverseMat: \n" ++ show inverseMat ++ "\n")
-                                                                            True --Test unitarity
-                          else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
-                                False
+isUnitary lists = (conjugateTranspose) == inverseMat
+                    where mat =  debug(show lists ++ "\n")
+                                     fromLists lists --Create matrix from lists
+                          conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
+                          inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
+                                           wrap $ inverse mat --The inverse matrix
 
 
 
@@ -397,7 +392,7 @@ isoTypeCheck (Clauses list) (Iso a b) = do
                                              in do
                                                   vTypes <- valueTypes vList a
                                                   eTypes <- extendedValueTypes eList b
-                                                  if (wrap eTypes) == b && (wrap vTypes) == a then
+                                                  if (checkODs odA odB a b) == (wrap eTypes) == b && (wrap vTypes) == a then
                                                       if(unitary) then return $ Right $ Iso a b
                                                       else return $ Left $ IsoError "Not a unitary Matrix!" "\n" (show (Clauses list))
                                                   else return $ Left $ IsoError "Iso Clausess dont match type:" (show (Clauses list)) (show (Iso a b))--Need to garantee correct checking of vals and extVals still
@@ -414,6 +409,13 @@ isoTypeCheck (Fixpoint f iso) t =do
 --                                 --Right (Comp a b $ wrap $ isoTypeCheck delta (addIsoNameToPsi psi f (Iso a b)) iso (Comp a b t))
 -- --If typeChecking fails return a Left value with an error.
 isoTypeCheck iso t = return $ Left $ IsoError "Could not match supplied iso" (show iso) (show t)
+
+checkODs ::  Either TypeErrors OD -> Either TypeErrors OD -> A -> B -> Bool
+checkODs (Right v) (Right e) _ _ = True
+checkODs (Left v) (Right e) t1 _ = error $ "Values are not an OrthogonalDecomp of " ++ show t1 ++ ":\n\t" ++ show v
+checkODs (Right v) (Left e) t1 t2 = error $ "Expressions are not an OrthogonalDecomp of " ++ show t2 ++ ":\n\t" ++ show e
+checkODs (Left v) (Left e) t1 t2 = error $ "Values nor Expressions are not an OrthogonalDecomp of " ++ show t1 ++ ","++ show t2++":\n\t" ++ show v ++ "\n\t" ++ show e
+
 
 --Check fixpoint termination...
 fixpointTerminates :: Psi -> Iso -> Bool

@@ -42,7 +42,7 @@ matching sigma (InjR v) (InjR w) = matching sigma v w
 matching sigma (PairV v1 v2) (PairV w1 w2) = let  sig1 = matching sigma v1 w1
                                                   sig2 = matching sigma v2 w2
                                              in case (sig1,sig2) of
-                                                  (Just sigma1,Just sigma2) -> case intersectionTest support sigma1 sigma2 of
+                                                  (Just sigma1,Just sigma2) -> case intersectionTest support sigma1 sigma2 of -- Support is a function that builds the supporting variable sets for both sigmas.
                                                                                     [] -> --debug("Actually succedded")
                                                                                             Just $ sigma1 `union` sigma2
                                                                                     otherwise -> --debug("Support intersects:" ++ show sigma1 ++ "||" ++ show sigma2)

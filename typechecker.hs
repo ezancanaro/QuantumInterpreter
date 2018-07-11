@@ -338,18 +338,12 @@ testUnit = isUnitary . getLinearTerms
 
 
 isUnitary :: [[Alpha]] -> Bool
-isUnitary lists
-  | oZ lists = True -- oZ is defined in Utils.hs -- Used to avoid building a matrix when we have 1e+0e+0e.. combinations in all clauses
-  | otherwise   = let mat =  debug(show lists ++ "\n")
-                              fromLists lists --Create matrix from lists
-                      conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
-                      inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
-                                    wrap $ inverse mat --The inverse matrix
-                      in if (conjugateTranspose) == inverseMat then debug("InverseMat: \n" ++ show inverseMat ++ "\n")
-                                                                            True --Test unitarity
-                         else debug("InverseMat: \n" ++ show inverseMat ++ "\n")
-                                False
-
+isUnitary lists = (conjugateTranspose) == inverseMat
+                    where mat =  debug(show lists ++ "\n")
+                                     fromLists lists --Create matrix from lists
+                          conjugateTranspose = fmap conjugate $ Data.Matrix.transpose mat --Conjugate Transpose Matrix
+                          inverseMat = debug("ConjugateTranspose: \n" ++ show conjugateTranspose ++ "\n")
+                                           wrap $ inverse mat --The inverse matrix
 
 
 
